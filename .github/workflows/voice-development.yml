@@ -1,0 +1,31 @@
+name: Voice development checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/integrated-voice]
+permissions:
+  contents: read
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Apply pinned engine patch
+        run: python3 Tools/voice/prepare_engine.py
+      - name: Build and run focused voice checks
+        run: dotnet test Content.Tests/Content.Tests.csproj -m:1 --filter FullyQualifiedName~VoiceFoundationTest --logger "trx;LogFileName=voice.trx"
+      - name: Check prototypes and client sandbox
+        run: dotnet test Content.IntegrationTests/Content.IntegrationTests.csproj -m:1 --filter "FullyQualifiedName~PrototypesHaveKnownComponents|FullyQualifiedName~SandboxTest" --logger "trx;LogFileName=voice-integration.trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-test-results
+          path: |
+            Content.Tests/TestResults/voice.trx
+            Content.IntegrationTests/TestResults/voice-integration.trx
