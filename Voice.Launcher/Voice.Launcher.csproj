@@ -9,5 +9,6 @@
     <PackageReference Include="Avalonia.Themes.Simple" Version="11.2.4" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <EmbeddedResource Include="update-trust.json" LogicalName="UpdateTrust" />
+    <None Update="ThirdParty/*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

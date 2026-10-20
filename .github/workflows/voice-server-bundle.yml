@@ -27,6 +27,8 @@ jobs:
           python-version: '3.12'
       - name: Build matching self-contained Linux server
         run: python Tools/voice/package_server.py
+      - name: Verify authenticated startup and shutdown
+        run: python Tools/voice/smoke_server.py release/voice-server/SkellySS14-voice-server-linux-x64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: SkellySS14-voice-server-linux-x64

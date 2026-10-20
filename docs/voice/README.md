@@ -11,7 +11,7 @@ server and client. No audio content is intentionally written to logs or replay s
 
 The server owner selected a custom client after the initial investigation. See
 [CUSTOM_CLIENT.md](CUSTOM_CLIENT.md) for the executable host, bundle build path, and remaining
-login/update work. The stock-launcher limitation below explains this decision; it no longer blocks
+login/update setup. The stock-launcher limitation below explains this decision; it no longer blocks
 developing our own client distribution.
 
 ## Original stock-launcher distribution blocker
@@ -89,8 +89,8 @@ minimum_pressure = 5.0
 3. Use the local-only microphone test in Audio. It encodes/decodes locally and does not send
    test speech to the server. Stop the test or close the options panel to close capture.
 4. Audio includes a mic level/status display, a player list with speaking indicators, and
-   per-account volume/mute controls. Drag a volume slider and release to save. Refresh the
-   list after players join. These preferences persist in the local client configuration.
+   anonymous stream volume/mute controls. Drag a volume slider and release to apply. The
+   heard-stream list refreshes automatically. Preferences are session-local and do not expose account IDs.
 5. Radio PTT speaks locally and on your equipped, enabled headset. The default channel is
    the headset's department/default channel. Developers can select another authorized channel
    with `cvar voice.radio_channel <prototype ID>`; an empty value restores the default.
