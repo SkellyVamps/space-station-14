@@ -42,7 +42,8 @@ Each player extracts the whole client bundle, starts `SkellyLauncher.exe` or `Sk
 signs in using their own existing SS14 account and two-factor code if enabled. Enter the test server
 address. In Options, enable voice, select a microphone, run the **local** microphone test, set input
 and output gain, and bind local/radio push-to-talk under Controls. No voice keys are assigned by default.
-Use headphones to avoid feedback. The launcher stays open while the game runs.
+Use headphones to avoid feedback. The launcher stays open while the game runs. Ready up/start the
+round and spawn characters before testing multiplayer voice; lobby players cannot transmit.
 
 ## Record pass/fail and logs
 

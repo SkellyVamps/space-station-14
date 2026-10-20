@@ -18,7 +18,8 @@ not a claim of production readiness. The original goal remains full server-distr
 - [x] Add separate sandboxed executable host and self-contained development bundle recipe.
 - [x] Linux development bundle integrity, sandbox loading and headless main-menu startup pass.
 - [x] Implement honoring quit between loop creation and startup.
-- [ ] Revalidate graceful bundled shutdown and normal graphical shutdown on both platforms.
+- [x] Windows/Linux client archive, sandboxed headless startup and graceful quit pass in CI.
+- [ ] Normal graphical shutdown and hardware playtests on both platforms.
 - [x] Graphical launcher with official SS14 auth, MFA, renewal and logout; offline contract tests pass.
 - [x] Signed-update code with runtime/rollback/hash validation and side-by-side installation.
 - [ ] Owner key/channel setup, OS installer/signing and live player release tests.
@@ -57,10 +58,11 @@ not a claim of production readiness. The original goal remains full server-distr
 - [ ] Physical device hot-switch and reconnect soak tests.
 
 ## Verification and release
-- [x] Seven focused unit scenarios, real managed Opus round trip, and synthetic acoustic benchmark pass.
+- [x] Nine focused unit scenarios, managed Opus round trip, deterministic malformed packet corpus and synthetic acoustic benchmark pass.
 - [x] Existing prototype component validation and client/shared sandbox integration checks pass.
 - [x] Reproducible revision-pinned engine patch and preparation script.
 - [x] Feature-branch CI build/test workflow.
+- [x] Matching self-contained Linux server with Hybrid ACZ and authenticated `/info`/shutdown smoke test.
 - [ ] All upstream build/packaging workflows adapted to apply pinned engine patch.
 - [ ] Two-client audio integration, PVS boundary tests, late-join/profile replication tests.
 - [ ] Realistic server/client CPU, network, allocation and tick measurements in a station.

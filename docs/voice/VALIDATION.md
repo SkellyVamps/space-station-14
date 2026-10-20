@@ -56,3 +56,41 @@ acceptance test has passed yet. No production performance or privacy guarantee i
 Windows packaging and startup are configured in the new workflow but were not tested locally.
 No graphical session, microphone hardware, authenticated server login, installer signing, updater,
 or speech-to-text moderation service was verified or enabled by this follow-up.
+
+## Launcher and matching server follow-up — 2026-10-20
+
+The temporary workspace was reset before the unpublished follow-up could be saved. The changes were
+reconstructed from the recorded work and published in checkpoints. Initial recovery CI caught an
+incomplete engine patch and missing import; both were fixed. The patch now includes all new capture,
+codec and license files, applies to a clean pinned engine checkout, and checks required files on reuse.
+
+Validated checkpoint `f5c9a9b232484953b2b28d59a619066321ece25f`:
+
+- Launcher authentication/update contract tests passed with synthetic credentials and HTTP responses.
+  Coverage includes MFA, account UUID, renewal/logout, environment token handoff, server addresses,
+  signature verification, tampering, rollback, installation and unsafe archive refusal.
+- Nine focused voice tests passed; prototype validation and client/shared sandbox checks passed.
+- Windows x64 and Linux x64 complete client bundles built, passed archive integrity, sandboxed
+  headless menu initialization and graceful `+quit` shutdown checks, and were uploaded by CI.
+- The matching self-contained Linux server built and passed archive integrity, fresh extracted
+  startup, `/info` with authentication required, and graceful console shutdown in GitHub CI.
+- The server smoke caught a clean-install failure in `/info`: the package needed Hybrid ACZ client
+  content. Server packaging now builds and embeds `Content.Client.zip` instead of relying on paths
+  that exist only in a development checkout.
+
+Evidence:
+
+- Voice checks: https://github.com/SkellyVamps/space-station-14/actions/runs/39404953542
+- Client bundles: https://github.com/SkellyVamps/space-station-14/actions/runs/39404953510
+- Server bundle/startup: https://github.com/SkellyVamps/space-station-14/actions/runs/39404953606
+
+The Linux client was also built and smoke-tested locally. Local server startup is blocked by this
+execution environment's network-interface enumeration policy; the successful CI server test is the
+networked startup evidence. Local simultaneous Debug/Release restores interfered with integration
+build assets, so clean CI runs are used for the reported integration results.
+
+Subsequent launcher fixes add official `ss14s://` default port 443 handling, serialize update installs,
+and dispose playback sources if initialization fails. Their exact revision is identified by the CI run.
+No actual account credentials, microphone hardware, graphical two-client game, owner signing identity,
+HTTPS update channel or production deployment has been verified. These remain live acceptance work;
+see ACCEPTANCE_TEST.md and SIGNED_RELEASES.md. Speech-to-text is not enabled.
