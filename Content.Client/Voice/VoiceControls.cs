@@ -5,7 +5,7 @@ using Robust.Shared.Timing;
 namespace Content.Client.Voice;
 
 /// <summary>Live mic meter, local-only loopback test, and account-based mute/volume controls.</summary>
-public sealed class VoiceControls : BoxContainer
+public sealed partial class VoiceControls : BoxContainer
 {
     [Dependency] private IEntitySystemManager _systems = default!;
     [Dependency] private IPlayerManager _players = default!;

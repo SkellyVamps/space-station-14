@@ -13,7 +13,11 @@ not a claim of production readiness. The original goal remains full server-distr
 - [ ] Independent network fuzzing; exact Opus packet-duration/framing validation on ingress.
 - [ ] FEC, adaptive jitter, disconnect/reconnect hardware soak testing, cross-platform audio QA.
 - [ ] Verify float-buffer support/fallback on older OpenAL implementations.
-- [ ] Resolve official-launcher engine distribution/signing blocker.
+- [x] Owner selected a custom client; stock-launcher-only requirement superseded.
+- [x] Add separate sandboxed executable host and self-contained development bundle recipe.
+- [x] Linux development bundle integrity, sandbox loading and headless main-menu startup pass.
+- [ ] Resolve the headless graceful-quit hang; verify normal graphical shutdown.
+- [ ] Custom launcher/account login, signed updates, installer and player release testing.
 
 ## World and gameplay
 - [x] Local positional playback; server range/falloff and map/grid checks.
@@ -55,5 +59,5 @@ not a claim of production readiness. The original goal remains full server-distr
 - [ ] Two-client audio integration, PVS boundary tests, late-join/profile replication tests.
 - [ ] Realistic server/client CPU, network, allocation and tick measurements in a station.
 - [ ] Privacy/security review, parser fuzz tests, sustained abuse and moderation tests.
-- [ ] Signed engine/module distribution, hosted artifacts and stock-launcher acceptance test.
+- [ ] Signed custom-client distribution, hosted artifacts and custom-launcher acceptance test.
 - [ ] Production release only after above blockers and verification are resolved.

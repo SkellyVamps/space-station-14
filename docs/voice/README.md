@@ -7,7 +7,14 @@ adapters. Automated checks do not establish that hardware capture, stock-launche
 real station acoustics, or multiplayer operation work correctly. Voice defaults off at both
 server and client. No audio content is intentionally written to logs or replay storage.
 
-## Important distribution blocker
+## Distribution decision: custom client
+
+The server owner selected a custom client after the initial investigation. See
+[CUSTOM_CLIENT.md](CUSTOM_CLIENT.md) for the executable host, bundle build path, and remaining
+login/update work. The stock-launcher limitation below explains this decision; it no longer blocks
+developing our own client distribution.
+
+## Original stock-launcher distribution blocker
 
 The official launcher obtains Robust engine versions from Space Wizards' build manifest.
 A content server can advertise `engine_version`, but cannot supply an arbitrary replacement

@@ -39,3 +39,20 @@ with the number of authorized listeners. This is an arithmetic estimate, not a n
 No physical microphone/speaker, multi-client listening, Windows/macOS device, PVS-boundary,
 station acoustics, radio encryption abuse, sustained tick-load, packet fuzzing, or official-launcher
 acceptance test has passed yet. No production performance or privacy guarantee is implied.
+
+## Custom-client follow-up (2026-10-19)
+
+- Added `Voice.ClientHost` and the engine-mode embedding entry point; host compilation passed.
+- Host `--help` works, and missing resource archives produce a clear error with exit status 1.
+- Release client content packaging passed and produced a roughly 203 MB content archive.
+- Self-contained Linux x64 publication and bundle packaging passed (roughly 256 MB final zip).
+- Bundle SHA-256, ZIP CRC, sandboxed content loading, RSI preload and main-menu initialization
+  passed using `smoke_custom_client.py`. It uses `hardquit` after initialization and does not
+  claim to verify graceful shutdown. The earlier headless `quit` test hung after reaching the menu.
+- The updated complete engine patch applies cleanly to a fresh checkout at its pinned revision.
+- Python syntax checks pass for the preparation, packaging and smoke tools.
+- Existing GitHub `Voice development checks` run 39345769721 completed successfully before this follow-up.
+
+Windows packaging and startup are configured in the new workflow but were not tested locally.
+No graphical session, microphone hardware, authenticated server login, installer signing, updater,
+or speech-to-text moderation service was verified or enabled by this follow-up.

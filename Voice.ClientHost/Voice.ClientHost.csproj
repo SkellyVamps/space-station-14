@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>SkellySS14</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RobustILLink>false</RobustILLink>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <Import Project="../MSBuild/Content.props" />
+  <Import Project="../RobustToolbox/MSBuild/Robust.Properties.targets" />
+  <Import Project="../RobustToolbox/Imports/Client.props" />
+</Project>
