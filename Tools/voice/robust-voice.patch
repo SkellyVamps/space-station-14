@@ -1,0 +1,289 @@
+diff --git a/Directory.Packages.props b/Directory.Packages.props
+index f58bc6a..3b8f81a 100644
+--- a/Directory.Packages.props
++++ b/Directory.Packages.props
+@@ -47,6 +47,7 @@
+     <PackageVersion Include="NUnit3TestAdapter" Version="5.2.0" />
+     <PackageVersion Include="Nett" Version="0.15.0" />
+     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
++    <PackageVersion Include="Concentus" Version="2.2.2" />
+     <PackageVersion Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
+     <PackageVersion Include="OpenToolkit.Graphics" Version="4.0.0-pre9.1" />
+     <PackageVersion Include="Pidgin" Version="3.5.1" />
+diff --git a/Robust.Client/Audio/AudioManager.Capture.cs b/Robust.Client/Audio/AudioManager.Capture.cs
+new file mode 100644
+index 0000000..17c98c9
+--- /dev/null
++++ b/Robust.Client/Audio/AudioManager.Capture.cs
+@@ -0,0 +1,72 @@
++using System;
++using System.Collections.Generic;
++using OpenTK.Audio.OpenAL;
++
++namespace Robust.Client.Audio;
++
++internal sealed partial class AudioManager
++{
++    public IReadOnlyList<string> GetCaptureDevices()
++    {
++        try
++        {
++            return ALC.GetString((AlcGetStringList) 0x310);
++        }
++        catch (Exception e)
++        {
++            OpenALSawmill.Warning($"Microphone enumeration failed: {e.Message}");
++            return Array.Empty<string>();
++        }
++    }
++
++    public IAudioCapture? OpenCapture(string? device)
++    {
++        try
++        {
++            var handle = ALC.CaptureOpenDevice(device!, 48000, ALFormat.Mono16, 4800);
++            if (handle == ALCaptureDevice.Null)
++                return null;
++            try
++            {
++                ALC.CaptureStart(handle);
++                return new OpenAlCapture(handle);
++            }
++            catch
++            {
++                ALC.CaptureCloseDevice(handle);
++                throw;
++            }
++        }
++        catch (Exception e)
++        {
++            OpenALSawmill.Warning($"Microphone open failed: {e.Message}");
++            return null;
++        }
++    }
++
++    private sealed class OpenAlCapture(ALCaptureDevice handle) : IAudioCapture
++    {
++        private ALCaptureDevice _handle = handle;
++        public int AvailableSamples => _handle == ALCaptureDevice.Null
++            ? 0 : Math.Max(0, ALC.GetInteger(_handle, (AlcGetInteger) 0x312));
++
++        public unsafe int Read(Span<short> destination)
++        {
++            var count = Math.Min(destination.Length, AvailableSamples);
++            if (count == 0)
++                return 0;
++            fixed (short* data = destination)
++                ALC.CaptureSamples(_handle, data, count);
++            return count;
++        }
++
++        public void Dispose()
++        {
++            if (_handle == ALCaptureDevice.Null)
++                return;
++            ALC.CaptureStop(_handle);
++            ALC.CaptureCloseDevice(_handle);
++            _handle = ALCaptureDevice.Null;
++        }
++    }
++}
+diff --git a/Robust.Client/Audio/AudioManager.Public.cs b/Robust.Client/Audio/AudioManager.Public.cs
+index d1feda5..067d4c2 100644
+--- a/Robust.Client/Audio/AudioManager.Public.cs
++++ b/Robust.Client/Audio/AudioManager.Public.cs
+@@ -350,7 +350,7 @@ internal partial class AudioManager
+     }
+ 
+     /// <inheritdoc/>
+-    IBufferedAudioSource? IAudioInternal.CreateBufferedAudioSource(int buffers, bool floatAudio)
++    public IBufferedAudioSource? CreateBufferedAudioSource(int buffers, bool floatAudio)
+     {
+         var source = AL.GenSource();
+ 
+diff --git a/Robust.Client/Audio/HeadlessAudioManager.cs b/Robust.Client/Audio/HeadlessAudioManager.cs
+index 6c962ad..52739f5 100644
+--- a/Robust.Client/Audio/HeadlessAudioManager.cs
++++ b/Robust.Client/Audio/HeadlessAudioManager.cs
+@@ -18,6 +18,9 @@ internal sealed class HeadlessAudioManager : IAudioInternal
+     private readonly IReadOnlyList<string> _emptyDevices = Array.Empty<string>();
+     private int _audioBuffer;
+ 
++    public IReadOnlyList<string> GetCaptureDevices() => Array.Empty<string>();
++    public IAudioCapture? OpenCapture(string? device) => null;
++
+     /// <inheritdoc />
+     public void InitializePostWindowing()
+     {
+diff --git a/Robust.Client/Audio/IAudioCapture.cs b/Robust.Client/Audio/IAudioCapture.cs
+new file mode 100644
+index 0000000..7770f97
+--- /dev/null
++++ b/Robust.Client/Audio/IAudioCapture.cs
+@@ -0,0 +1,11 @@
++using System;
++
++namespace Robust.Client.Audio;
++
++/// <summary>Game-thread-only microphone handle. Dispose closes the device and discards queued audio.</summary>
++public interface IAudioCapture : IDisposable
++{
++    int AvailableSamples { get; }
++    /// <summary>Reads available mono 48 kHz PCM. Returns zero after failure or disposal.</summary>
++    int Read(Span<short> destination);
++}
+diff --git a/Robust.Client/Audio/IAudioInternal.cs b/Robust.Client/Audio/IAudioInternal.cs
+index 33ee472..66e1b4e 100644
+--- a/Robust.Client/Audio/IAudioInternal.cs
++++ b/Robust.Client/Audio/IAudioInternal.cs
+@@ -30,7 +30,6 @@ internal interface IAudioInternal : IAudioManager
+     /// Returns a buffered audio source.
+     /// </summary>
+     /// <returns>null if unable to create the source.</returns>
+-    IBufferedAudioSource? CreateBufferedAudioSource(int buffers, bool floatAudio=false);
+ 
+     /// <summary>
+     /// Sets the velocity for the audio listener.
+diff --git a/Robust.Client/Audio/IAudioManager.cs b/Robust.Client/Audio/IAudioManager.cs
+index 6f8a6e1..85de10e 100644
+--- a/Robust.Client/Audio/IAudioManager.cs
++++ b/Robust.Client/Audio/IAudioManager.cs
+@@ -23,6 +23,14 @@ public interface IAudioManager
+ 
+     string? GetDefaultAudioDevice();
+ 
++    /// <summary>Streaming mono PCM source. Must be used on the game thread.</summary>
++    IBufferedAudioSource? CreateBufferedAudioSource(int buffers, bool floatAudio = false);
++
++    IReadOnlyList<string> GetCaptureDevices();
++
++    /// <summary>Starts mono 48 kHz signed 16-bit capture, or returns null on failure.</summary>
++    IAudioCapture? OpenCapture(string? device);
++
+     IAudioSource? CreateAudioSource(AudioStream stream);
+ 
+     AudioStream LoadAudioOggVorbis(Stream stream, string? name = null);
+diff --git a/Robust.Client/Audio/VoiceCodec.cs b/Robust.Client/Audio/VoiceCodec.cs
+new file mode 100644
+index 0000000..e349eca
+--- /dev/null
++++ b/Robust.Client/Audio/VoiceCodec.cs
+@@ -0,0 +1,50 @@
++using System;
++using Concentus.Enums;
++using Concentus.Structs;
++
++namespace Robust.Client.Audio;
++
++/// <summary>48 kHz mono, 20 ms managed Opus. Keeps codec implementation outside content sandbox.</summary>
++public sealed class VoiceEncoder
++{
++#pragma warning disable CS0618 // Deliberately choose managed implementation; no native library probing.
++    private readonly OpusEncoder _encoder = new(48000, 1, OpusApplication.OPUS_APPLICATION_VOIP)
++    {
++        Bitrate = 24000,
++        Complexity = 5,
++        UseInbandFEC = false,
++        UseDTX = false,
++    };
++#pragma warning restore CS0618
++
++    public int Encode(ReadOnlySpan<short> pcm, Span<byte> encoded)
++    {
++        if (pcm.Length != 960 || encoded.Length < 512)
++            throw new ArgumentException("Voice requires 960 PCM samples and 512 output bytes");
++        return _encoder.Encode(pcm, 960, encoded, 512);
++    }
++}
++
++/// <summary>One decoder per authenticated speaker. Empty input invokes Opus packet loss concealment.</summary>
++public sealed class VoiceDecoder
++{
++#pragma warning disable CS0618
++    private readonly OpusDecoder _decoder = new(48000, 1);
++#pragma warning restore CS0618
++
++    public int Decode(ReadOnlySpan<byte> encoded, Span<float> pcm)
++    {
++        if (encoded.Length > 512 || pcm.Length != 960)
++            return 0;
++        try
++        {
++            return _decoder.Decode(encoded, pcm, 960);
++        }
++        catch (Exception)
++        {
++            pcm.Clear();
++            _decoder.ResetState();
++            return 0;
++        }
++    }
++}
+diff --git a/Robust.Client/Robust.Client.csproj b/Robust.Client/Robust.Client.csproj
+index 6ee0278..d075aea 100644
+--- a/Robust.Client/Robust.Client.csproj
++++ b/Robust.Client/Robust.Client.csproj
+@@ -18,6 +18,7 @@
+     <PackageReference Include="SpaceWizards.NFluidsynth" PrivateAssets="compile" />
+     <PackageReference Include="SixLabors.ImageSharp" />
+     <PackageReference Include="OpenToolkit.Graphics" PrivateAssets="compile" />
++    <PackageReference Include="Concentus" PrivateAssets="compile" />
+     <PackageReference Include="OpenTK.Audio.OpenAL" PrivateAssets="compile" />
+     <PackageReference Include="SpaceWizards.SharpFont" PrivateAssets="compile" />
+     <PackageReference Include="SpaceWizards.Sdl" PrivateAssets="compile" />
+diff --git a/Robust.Shared/Audio/Sources/IBufferedAudioSource.cs b/Robust.Shared/Audio/Sources/IBufferedAudioSource.cs
+index 41c7fef..ee29b11 100644
+--- a/Robust.Shared/Audio/Sources/IBufferedAudioSource.cs
++++ b/Robust.Shared/Audio/Sources/IBufferedAudioSource.cs
+@@ -2,7 +2,7 @@ using System;
+ 
+ namespace Robust.Shared.Audio.Sources;
+ 
+-internal interface IBufferedAudioSource : IAudioSource
++public interface IBufferedAudioSource : IAudioSource
+ {
+     int SampleRate { get; set; }
+     int GetNumberOfBuffersProcessed();
+diff --git a/ThirdParty/Concentus/LICENSE.txt b/ThirdParty/Concentus/LICENSE.txt
+new file mode 100644
+index 0000000..9250838
+--- /dev/null
++++ b/ThirdParty/Concentus/LICENSE.txt
+@@ -0,0 +1,37 @@
++Copyright (c) by various holding parties, including (but not limited to):
++Skype Limited, Xiph.Org Foundation, CSIRO, Microsoft Corporation,
++Jean-Marc Valin, Gregory Maxwell, Mark Borgerding, Timothy B. Terriberry,
++Logan Stromberg. All rights are reserved by their respective holders.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are met:
++
++* Redistributions of source code must retain the above copyright notice, this
++  list of conditions and the following disclaimer.
++
++* Redistributions in binary form must reproduce the above copyright notice,
++  this list of conditions and the following disclaimer in the documentation
++  and/or other materials provided with the distribution.
++
++* Neither the name of Internet Society, IETF or IETF Trust, nor the
++   names of specific contributors, may be used to endorse or promote
++   products derived from this software without specific prior written
++   permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
++FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++
++This repository and its redistributable packages contain independently compiled
++versions of the Opus C reference library, which is maintained by Xiph.org and the
++Opus open-source contributors. The source code for these libraries is freely available
++at https://gitlab.xiph.org/xiph/opus/-/tags/v1.5.2, and all binaries are being
++redistributed to you under the same terms of the general Opus license dictated above.
