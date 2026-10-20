@@ -1,14 +1,14 @@
-using Robust.Client.Player;
+using System.Linq;
 using Robust.Client.UserInterface.Controls;
 using Robust.Shared.Timing;
 
 namespace Content.Client.Voice;
 
-/// <summary>Live mic meter, local-only loopback test, and account-based mute/volume controls.</summary>
+/// <summary>Live mic meter, local-only loopback test, and opaque stream mute/volume controls.</summary>
 public sealed partial class VoiceControls : BoxContainer
 {
     [Dependency] private IEntitySystemManager _systems = default!;
-    [Dependency] private IPlayerManager _players = default!;
+    private float _refreshAfter;
     private readonly Label _status = new();
     private readonly ProgressBar _meter = new() { MinValue = 0, MaxValue = 1 };
     private readonly Button _test = new();
@@ -52,6 +52,12 @@ public sealed partial class VoiceControls : BoxContainer
         base.FrameUpdate(args);
         if (!_systems.TryGetEntitySystem<VoiceClientSystem>(out var voice))
             return;
+        _refreshAfter -= args.DeltaSeconds;
+        if (_refreshAfter <= 0)
+        {
+            _refreshAfter = 1;
+            if (!_indicators.Keys.ToHashSet().SetEquals(voice.HeardStreams)) RefreshPlayers();
+        }
         _meter.Value = voice.MicrophoneLevel;
         _test.Text = Loc.GetString(voice.MicrophoneTest ? "voice-test-stop" : "voice-test-start");
         _status.Text = voice.CaptureError ?? Loc.GetString(voice.Transmitting ? "voice-mic-active" : "voice-mic-closed");
@@ -65,27 +71,25 @@ public sealed partial class VoiceControls : BoxContainer
         _indicators.Clear();
         if (!_systems.TryGetEntitySystem<VoiceClientSystem>(out var voice))
             return;
-        foreach (var player in _players.Sessions)
+        foreach (var stream in voice.HeardStreams)
         {
-            if (player == _players.LocalSession)
-                continue;
             var row = new BoxContainer { Orientation = LayoutOrientation.Horizontal };
             var indicator = new Label { MinWidth = 65 };
-            var volume = new Slider { MinValue = 0, MaxValue = 2, Value = voice.GetPlayerVolume(player.UserId),
+            var volume = new Slider { MinValue = 0, MaxValue = 2, Value = voice.GetPlayerVolume(stream),
                 HorizontalExpand = true, MinWidth = 100 };
-            volume.OnReleased += _ => voice.SetPlayerVolume(player.UserId, volume.Value);
+            volume.OnReleased += _ => voice.SetPlayerVolume(stream, volume.Value);
             var mute = new Button { Text = Loc.GetString("voice-player-mute") };
             mute.OnPressed += _ =>
             {
                 volume.Value = volume.Value > 0 ? 0 : 1;
-                voice.SetPlayerVolume(player.UserId, volume.Value);
+                voice.SetPlayerVolume(stream, volume.Value);
             };
-            row.AddChild(new Label { Text = player.Name, MinWidth = 150 });
+            row.AddChild(new Label { Text = "Voice " + stream.UserId.ToString("N")[..6], MinWidth = 150 });
             row.AddChild(indicator);
             row.AddChild(volume);
             row.AddChild(mute);
             _list.AddChild(row);
-            _indicators[player.UserId] = indicator;
+            _indicators[stream] = indicator;
         }
     }
 }

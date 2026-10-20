@@ -10,14 +10,18 @@ not a claim of production readiness. The original goal remains full server-distr
 - [x] Dedicated unreliable bounded frame/playback messages; authenticated speaker identity.
 - [x] Per-connection token bucket, size bounds, replay/old sequence rejection and idle reset.
 - [x] Jitter reordering, bounded streams, fixed playback clock, Opus packet loss concealment.
-- [ ] Independent network fuzzing; exact Opus packet-duration/framing validation on ingress.
+- [x] Bounded mono/20 ms Opus framing validation on ingress and playback.
+- [ ] Independent network fuzzing and sustained abuse tests.
 - [ ] FEC, adaptive jitter, disconnect/reconnect hardware soak testing, cross-platform audio QA.
-- [ ] Verify float-buffer support/fallback on older OpenAL implementations.
+- [x] Use standard 16-bit PCM voice playback instead of requiring float-buffer support.
 - [x] Owner selected a custom client; stock-launcher-only requirement superseded.
 - [x] Add separate sandboxed executable host and self-contained development bundle recipe.
 - [x] Linux development bundle integrity, sandbox loading and headless main-menu startup pass.
-- [ ] Resolve the headless graceful-quit hang; verify normal graphical shutdown.
-- [ ] Custom launcher/account login, signed updates, installer and player release testing.
+- [x] Implement honoring quit between loop creation and startup.
+- [ ] Revalidate graceful bundled shutdown and normal graphical shutdown on both platforms.
+- [x] Graphical launcher with official SS14 auth, MFA, renewal and logout; offline contract tests pass.
+- [x] Signed-update code with runtime/rollback/hash validation and side-by-side installation.
+- [ ] Owner key/channel setup, OS installer/signing and live player release tests.
 
 ## World and gameplay
 - [x] Local positional playback; server range/falloff and map/grid checks.
@@ -33,8 +37,8 @@ not a claim of production readiness. The original goal remains full server-distr
       invalidation rather than bounded 100 ms refresh, and acoustically correct diagonals.
 - [ ] Intercom/handheld/intrinsic-radio routing, radio output volume/channel controls in UI.
 - [ ] Full hearing impairment, ghost/dead/spectator/admin policies and configuration.
-- [ ] Stable anonymous disguise stream IDs and UI identity rules; raw account mute identity
-      currently accompanies legitimate received audio and can reveal disguised speaker identity.
+- [x] Listener-scoped opaque playback IDs with entity/profile rotation and anonymous stream roster.
+- [ ] Review identity inference from existing world/session data and local mute behavior after disguise changes.
 - [ ] Equipment-specific active-state integration with existing VoiceMask toggles/implants.
 - [ ] Character-specific independent pitch/formant controls, robust formant shifting, resonance,
       EQ/compressor/vocoder/static/crackle/echo framework and procedural impersonation mechanics.
@@ -44,11 +48,13 @@ not a claim of production readiness. The original goal remains full server-distr
 ## Client UX
 - [x] Explicit opt-in, normal configurable local/radio PTT bindings, focus guards.
 - [x] Device/gain/output settings, live mic meter/status and local encode/decode test.
-- [x] Per-account volume/mute preferences and speaking status in the voice controls list.
-- [ ] HUD/world speaking indicators, privacy-reviewed displayed names, dynamic roster updates.
+- [x] Per-stream volume/mute preferences and speaking status; account IDs are not exposed by playback.
+- [x] Dynamic anonymous heard-stream roster.
+- [ ] HUD/world speaking indicators and broader privacy review.
 - [ ] Voice activation threshold/attack/release; remains secondary to PTT.
 - [ ] Physical microphone unplug/replug and permission-denied tests on Windows/Linux/macOS.
-- [ ] Full failure isolation for device/source errors, smooth hot-switch and codec-state reset.
+- [x] Device/source exception isolation, retry delay and capture codec reset.
+- [ ] Physical device hot-switch and reconnect soak tests.
 
 ## Verification and release
 - [x] Seven focused unit scenarios, real managed Opus round trip, and synthetic acoustic benchmark pass.

@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+      - name: Check launcher contracts
+        run: dotnet run --project Voice.Launcher.Tests -c Release
       - name: Apply pinned engine patch
         run: python3 Tools/voice/prepare_engine.py
       - name: Build and run focused voice checks

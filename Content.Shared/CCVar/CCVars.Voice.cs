@@ -16,8 +16,6 @@ public sealed partial class CCVars
         CVarDef.Create("voice.input_device", "", CVar.CLIENTONLY | CVar.ARCHIVE);
     public static readonly CVarDef<float> VoiceInputGain =
         CVarDef.Create("voice.input_gain", 1f, CVar.CLIENTONLY | CVar.ARCHIVE);
-    public static readonly CVarDef<string> VoicePlayerVolumes =
-        CVarDef.Create("voice.player_volumes", "", CVar.CLIENTONLY | CVar.ARCHIVE);
     public static readonly CVarDef<string> VoiceRadioChannel =
         CVarDef.Create("voice.radio_channel", "", CVar.CLIENTONLY | CVar.ARCHIVE);
     public static readonly CVarDef<float> VoiceOutputGain =

@@ -319,3 +319,6 @@ error.glsl
 
 # C# Dev Kit cache file
 *.lscache
+
+# Avalonia launcher build state
+.avalonia-build-tasks/

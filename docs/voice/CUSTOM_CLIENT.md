@@ -1,70 +1,62 @@
-# Custom client distribution decision
+# Custom client and launcher
 
-The server owner selected a custom client on 2026-10-19. The required player experience is now
-one installation of our client/launcher, followed by integrated voice in-game. No browser voice
-page, virtual microphone, Figaro installation or separate voice application is planned.
-The original brief remains as historical requirements; this decision supersedes its stock-launcher-only requirement.
+This is an experimental custom installation with integrated voice, superseding the original
+stock-launcher-only requirement. Live microphone, graphical and multiplayer acceptance testing
+remain required before a player release.
 
-## Development executable
+## Build and run
 
-`Voice.ClientHost` embeds the patched Robust client using a small `ContentStart.StartEngineLibrary`
-entry point added to the engine patch (engine-mode assembly loading). It keeps content sandboxing enabled, mounts engine resources before game resources,
-and uses a separate `Skelly SS14 Voice` settings directory. It does not modify the official launcher
-or its engine cache, disable signature verification in that launcher, or read saved login tokens.
-
-Build a development bundle from the repository root with Python 3.11+ and the .NET 10 SDK:
+Use Python 3.11+ and .NET 10:
 
 ```sh
 python3 Tools/voice/package_custom_client.py --runtime win-x64
-# Or on Linux:
-python3 Tools/voice/package_custom_client.py --runtime linux-x64
+# Or --runtime linux-x64
 ```
 
-The script applies the pinned engine patch, invokes the existing content packager, publishes a
-self-contained executable with native dependencies, and bundles engine/game resources and codec
-license notices. It creates a platform zip and SHA-256 sidecar in `release/voice-client/`. Native
-OS dependencies may still be required on Linux. The Windows executable is `SkellySS14.exe` inside
-the extracted `SkellySS14` folder; Linux uses `SkellySS14`. Do not run the executable directly out
-of the zip. `--content-zip` accepts a previously packaged content build; it does not rebuild or
-verify compatibility of that input. `--dotnet` selects a particular dotnet executable.
+Extract the complete `SkellySS14` directory and run `SkellyLauncher.exe` (Windows) or `SkellyLauncher`
+(Linux). Linux may need native OS dependencies and execute permission for `SkellyLauncher` and
+`Client/SkellySS14`. The launcher and client dependencies are isolated because Robust uses a
+customized Avalonia.Base assembly.
 
-These are **unsigned development bundles**, not an installer, automatic updater, or completed
-account-login flow. A checksum detects accidental corruption; it does not authenticate a release.
-A developer may pass normal engine arguments, for example `--connect --connect-address localhost`.
-Do not disable production server authentication to make an unfinished bundle connect.
+Enter existing SS14 credentials, a two-factor code if enabled, and the voice server address.
+Passwords go directly to the official SS14 HTTPS auth endpoint; requests cannot redirect.
+Authentication, renewal and explicit logout use the existing account UUID and protocol. Passwords
+and tokens stay in memory; users sign in again after restarting. Closing the launcher drops its
+session from memory; explicit Sign out revokes it. Closing while a game runs leaves the game running.
+No official launcher credential database or engine cache is read or modified.
 
-## Player release path still to implement
+Server `/info` is bounded and supplies the authentication public key and advertised game address.
+Authentication-disabled servers are refused. The game receives its token through the engine's normal
+environment handshake, never command-line arguments; the engine clears the token variable after reading
+it. Production servers should require normal SS14 authentication. No authentication bypass is needed.
 
-1. A custom launcher/bootstrap with normal SS14 account authentication, explicit account selection,
-   and short-lived game token handoff. Never scrape another launcher's credential database.
-2. Our own update manifest and pinned signing public key, authenticated artifacts, atomic updates,
-   rollback, and engine/content compatibility checks. Keep private signing keys outside the repo.
-3. Installer/portable distribution, branding and OS signing where available. Start with Windows x64
-   and Linux x64; macOS requires its own packaging/signing and testing.
-4. Authenticated connection to our server, microphone permission/settings, and actual two-client
-   proximity/radio/equipment testing before a player release.
+`Voice.ClientHost` preserves sandboxing, mounts engine resources before game resources, and uses
+separate settings. The executable under `Client/` accepts normal developer engine arguments.
+The launcher currently runs its bundled content/engine for matching voice servers; it does not download
+arbitrary server content like the official launcher. `--content-zip` reuses content without verifying
+compatibility. ZIPs and SHA-256 sidecars appear under `release/voice-client/`.
 
-This removes dependence on upstream distributing the microphone engine changes, while leaving
-us responsible for maintaining and distributing the client. The small pinned engine patch remains
-isolated to make upstream merges manageable.
+## Updates
 
-## Moderation direction
+[Signed release setup](SIGNED_RELEASES.md) documents owner keys, signed manifests, verified downloads,
+rollback checks and side-by-side portable installation. Updates default disabled until the owner embeds
+its public key and fixed HTTPS channel. No private key is in the repository. Development ZIP checksums
+alone do not authenticate a release, and development bundles are not OS-signed installers.
 
-The proposed moderation extension is asynchronous speech-to-text keyed to authenticated account
-identity, with character/disguise context, timestamps and radio/local mode. This is not implemented
-by the custom host. Live voice must not wait for transcription. Transcripts should have moderator
-access controls, retention settings and player disclosure, and remain fallible review aids.
-Audio recording remains off; no transcription service or new recording was enabled by this change.
+## Verification
 
-## Automated smoke scope
+`smoke_custom_client.py` verifies checksum and ZIP integrity, sandboxed headless menu initialization,
+and graceful `+quit`. The engine patch fixes a quit request being ignored between loop creation and
+startup. This does not test graphical operation, microphone hardware, live account sign-in or multiplayer.
+`Voice.Launcher.Tests` uses synthetic credentials and HTTP responses only.
 
-`python3 Tools/voice/smoke_custom_client.py <bundle.zip>` verifies its SHA-256 and ZIP CRC,
-extracts a fresh copy, runs sandboxed headless initialization, checks that the main menu is reached,
-and exits using the engine's `hardquit` command. It disables eager texture preloading for this test.
-It does not test graphics, microphone capture, account login, networking, or graceful shutdown.
-The initial headless `quit` run reached the main menu but hung during shutdown; this remains an
-open issue, and the startup smoke is deliberately not presented as a shutdown test.
+## Identity and moderation
 
-The engine patch also adds an engine-mode embedding entry point (separate content assembly load
-context) and fixes a release-build RSI-preload OpenGL query when running headless. The latter uses
-the same non-GL atlas limit already used by the engine's development headless path.
+Voice packets carry opaque listener-scoped IDs, rotated on entity/profile changes. Radio playback omits
+the source entity. The heard-stream roster uses anonymous labels and stream volume/mutes. Account IDs
+remain available server-side for admin mutes. This removes direct account IDs from playback; it does not
+prevent inference from visible world/session data or recognizing a voice.
+
+Speech-to-text moderation remains proposed, not implemented or enabled. It should be asynchronous,
+moderator-only, tied to authenticated account identity and character/disguise context, with retention
+and player disclosure. No audio recording or transcription service is enabled.

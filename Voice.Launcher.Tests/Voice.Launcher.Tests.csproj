@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Voice.Launcher/Ss14Authentication.cs" Link="Ss14Authentication.cs" />
+    <Compile Include="../Voice.Launcher/ServerConnection.cs" Link="ServerConnection.cs" />
+    <Compile Include="../Voice.Launcher/ReleaseUpdates.cs" Link="ReleaseUpdates.cs" />
+  </ItemGroup>
+</Project>

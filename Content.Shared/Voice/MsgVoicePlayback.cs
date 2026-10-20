@@ -6,7 +6,7 @@ using Robust.Shared.Serialization;
 
 namespace Content.Shared.Voice;
 
-/// <summary>Server-authenticated playback metadata. Never accepted from clients.</summary>
+/// <summary>Server-authorized playback metadata. Speaker is an opaque listener-scoped stream ID, never an account ID.</summary>
 public sealed class MsgVoicePlayback : NetMessage
 {
     public override MsgGroups MsgGroup => MsgGroups.Command;
@@ -21,6 +21,8 @@ public sealed class MsgVoicePlayback : NetMessage
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer)
     {
+        if (buffer.ReadByte() != VoiceProtocol.Version)
+            throw new InvalidDataException("Unsupported voice protocol");
         Speaker = new NetUserId(new Guid(buffer.ReadBytes(16)));
         Entity = buffer.ReadNetEntity();
         Sequence = buffer.ReadUInt32();
@@ -36,6 +38,7 @@ public sealed class MsgVoicePlayback : NetMessage
 
     public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer)
     {
+        buffer.Write(VoiceProtocol.Version);
         buffer.Write(Speaker.UserId.ToByteArray());
         buffer.Write(Entity);
         buffer.Write(Sequence);

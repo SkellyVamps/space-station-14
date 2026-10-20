@@ -1,5 +1,4 @@
 using Content.Shared.CCVar;
-using System.Globalization;
 using System.Linq;
 using Content.Shared.Input;
 using Content.Shared.Voice;
@@ -43,6 +42,7 @@ public sealed partial class VoiceClientSystem : EntitySystem
     private EntityUid? _captureEntity;
     private string _captureDevice = "";
     private TimeSpan _retryAfter;
+    private TimeSpan _playbackRetryAfter;
     public float MicrophoneLevel { get; private set; }
     public bool Transmitting => _capture != null;
     public string? CaptureError { get; private set; }
@@ -53,7 +53,7 @@ public sealed partial class VoiceClientSystem : EntitySystem
         public readonly VoiceDecoder Decoder = new();
         public readonly float[] Pcm = new float[960];
         // Existing engine buffered-source API takes stereo-sized spans, even in mono mode.
-        public readonly float[] Upload = new float[1920];
+        public readonly ushort[] Upload = new ushort[1920];
         public readonly Queue<int> Free = new(new[] { 0, 1, 2, 3 });
         public readonly IBufferedAudioSource Source;
         public TimeSpan LastReceived;
@@ -70,7 +70,7 @@ public sealed partial class VoiceClientSystem : EntitySystem
     public override void Initialize()
     {
         base.Initialize();
-        LoadVolumes();
+
         _net.RegisterNetMessage<MsgVoiceFrame>(accept: NetMessageAccept.Server);
         _net.RegisterNetMessage<MsgVoicePlayback>(Receive, accept: NetMessageAccept.Client);
         CommandBinds.Builder.Bind(ContentKeyFunctions.VoicePushToTalk,
@@ -88,15 +88,12 @@ public sealed partial class VoiceClientSystem : EntitySystem
         base.Shutdown();
     }
 
-    /// <summary>Zero mutes an account. Preferences survive entity changes during the session.</summary>
+    /// <summary>Zero mutes an opaque stream. Entity/profile changes intentionally produce a new stream.</summary>
     public void SetPlayerVolume(NetUserId user, float volume)
     {
         _volumes[user] = float.IsFinite(volume) ? Math.Clamp(volume, 0, 2) : 0;
-        _config.SetCVar(CCVars.VoicePlayerVolumes, string.Join(";", _volumes.Take(256).Select(pair =>
-            $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}")));
-        _config.SaveToFile();
         if (_streams.Remove(user, out var stream))
-            stream.Dispose();
+            DisposeStream(stream);
     }
 
     public float GetPlayerVolume(NetUserId user) => _volumes.GetValueOrDefault(user, 1);
@@ -109,17 +106,8 @@ public sealed partial class VoiceClientSystem : EntitySystem
         ClearPlayback();
     }
 
-    private void LoadVolumes()
-    {
-        foreach (var entry in _config.GetCVar(CCVars.VoicePlayerVolumes).Split(';').Take(256))
-        {
-            var parts = entry.Split('=');
-            if (parts.Length == 2 && Guid.TryParse(parts[0], out var id) &&
-                float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var value) &&
-                float.IsFinite(value))
-                _volumes[new NetUserId(id)] = Math.Clamp(value, 0, 2);
-        }
-    }
+    public NetUserId[] HeardStreams => _streams.Where(pair => !pair.Value.Preview).Select(pair => pair.Key)
+        .Concat(_volumes.Keys).Distinct().ToArray();
 
     public bool IsSpeaking(NetUserId user) => _streams.TryGetValue(user, out var stream) &&
         _timing.RealTime - stream.LastReceived < TimeSpan.FromMilliseconds(150);
@@ -152,46 +140,59 @@ public sealed partial class VoiceClientSystem : EntitySystem
         foreach (var user in new List<NetUserId>(_streams.Keys))
         {
             var stream = _streams[user];
-            if (_timing.RealTime - stream.LastReceived > TimeSpan.FromMilliseconds(500) ||
-                (!stream.Radio && !stream.Preview && (!TryGetEntity(stream.Entity, out var target) || Deleted(target.Value))))
+            try
+            {
+                if (_timing.RealTime - stream.LastReceived > TimeSpan.FromMilliseconds(500) ||
+                    (!stream.Radio && !stream.Preview && (!TryGetEntity(stream.Entity, out var target) || Deleted(target.Value))))
+                {
+                    _streams.Remove(user);
+                    DisposeStream(stream);
+                    continue;
+                }
+                stream.Source.Global = stream.Radio || stream.Preview;
+                stream.Source.Occlusion = stream.Radio || stream.Preview ? 0 : Math.Clamp((1 - stream.Gain) * 0.6f, 0, 0.6f);
+                if (!stream.Radio && !stream.Preview && TryGetEntity(stream.Entity, out var entity))
+                    stream.Source.Position = _transform.GetWorldPosition(Transform(entity.Value));
+                stream.Source.Gain = stream.Gain * Math.Clamp(_config.GetCVar(CCVars.VoiceOutputGain), 0, 2) *
+                                     _volumes.GetValueOrDefault(user, 1);
+                var processed = stream.Source.GetNumberOfBuffersProcessed();
+                if (processed > 0)
+                {
+                    processed = Math.Min(processed, processedHandles.Length);
+                    stream.Source.GetBuffersProcessed(processedHandles[..processed]);
+                    for (var i = 0; i < processed; i++)
+                        stream.Free.Enqueue(processedHandles[i]);
+                }
+                if (_timing.RealTime - stream.NextFrame > TimeSpan.FromMilliseconds(60))
+                    stream.NextFrame = _timing.RealTime;
+                for (var budget = 0; budget < 3 && _timing.RealTime >= stream.NextFrame && stream.Free.Count > 0; budget++)
+                {
+                    stream.NextFrame += TimeSpan.FromMilliseconds(20);
+                    if (!stream.Jitter.TryRead(out var payload))
+                        break;
+                    var samples = stream.Decoder.Decode(payload ?? Array.Empty<byte>(), stream.Pcm);
+                    if (samples != 960)
+                        Array.Clear(stream.Pcm);
+                    if (stream.Radio)
+                        stream.RadioFilter.Process(stream.Pcm);
+                    // Engine consumes half the span length for a mono buffered source.
+                    for (var i = 0; i < stream.Pcm.Length; i++)
+                    {
+                        var value = float.IsFinite(stream.Pcm[i]) ? stream.Pcm[i] : 0;
+                        stream.Upload[i] = unchecked((ushort) (short) Math.Clamp(value * 32768, short.MinValue, short.MaxValue));
+                    }
+                    var handle = stream.Free.Dequeue();
+                    stream.Source.WriteBuffer(handle, stream.Upload);
+                    queued[0] = handle;
+                    stream.Source.QueueBuffers(queued);
+                    stream.Source.StartPlaying();
+                }
+            }
+            catch (Exception)
             {
                 _streams.Remove(user);
-                stream.Dispose();
-                continue;
-            }
-            stream.Source.Global = stream.Radio || stream.Preview;
-            stream.Source.Occlusion = stream.Radio || stream.Preview ? 0 : Math.Clamp((1 - stream.Gain) * 0.6f, 0, 0.6f);
-            if (!stream.Radio && !stream.Preview && TryGetEntity(stream.Entity, out var entity))
-                stream.Source.Position = _transform.GetWorldPosition(Transform(entity.Value));
-            stream.Source.Gain = stream.Gain * Math.Clamp(_config.GetCVar(CCVars.VoiceOutputGain), 0, 2) *
-                                 _volumes.GetValueOrDefault(user, 1);
-            var processed = stream.Source.GetNumberOfBuffersProcessed();
-            if (processed > 0)
-            {
-                processed = Math.Min(processed, processedHandles.Length);
-                stream.Source.GetBuffersProcessed(processedHandles[..processed]);
-                for (var i = 0; i < processed; i++)
-                    stream.Free.Enqueue(processedHandles[i]);
-            }
-            if (_timing.RealTime - stream.NextFrame > TimeSpan.FromMilliseconds(60))
-                stream.NextFrame = _timing.RealTime;
-            for (var budget = 0; budget < 3 && _timing.RealTime >= stream.NextFrame && stream.Free.Count > 0; budget++)
-            {
-                stream.NextFrame += TimeSpan.FromMilliseconds(20);
-                if (!stream.Jitter.TryRead(out var payload))
-                    break;
-                var samples = stream.Decoder.Decode(payload ?? Array.Empty<byte>(), stream.Pcm);
-                if (samples != 960)
-                    Array.Clear(stream.Pcm);
-                if (stream.Radio)
-                    stream.RadioFilter.Process(stream.Pcm);
-                // Engine consumes half the span length for a mono buffered source.
-                stream.Pcm.CopyTo(stream.Upload, 0);
-                var handle = stream.Free.Dequeue();
-                stream.Source.WriteBuffer(handle, stream.Upload);
-                queued[0] = handle;
-                stream.Source.QueueBuffers(queued);
-                stream.Source.StartPlaying();
+                DisposeStream(stream);
+                _playbackRetryAfter = _timing.RealTime + TimeSpan.FromSeconds(2);
             }
         }
     }
@@ -204,25 +205,25 @@ public sealed partial class VoiceClientSystem : EntitySystem
         if (!MicrophoneTest && (profile == null || profile.Revision == 0))
             return;
         profile ??= new ActiveVoiceProfileComponent();
-        var device = _config.GetCVar(CCVars.VoiceInputDevice);
-        if (_capture != null && device != _captureDevice)
-            StopCapture();
-        if (_capture == null)
-        {
-            if (_timing.RealTime < _retryAfter)
-                return;
-            _retryAfter = _timing.RealTime + TimeSpan.FromSeconds(2);
-            _capture = _audio.OpenCapture(string.IsNullOrEmpty(device) ? null : device);
-            CaptureError = _capture == null ? "Microphone unavailable or permission denied" : null;
-            if (_capture == null)
-                return;
-            _retryAfter = TimeSpan.Zero;
-            _captureEntity = _players.LocalEntity;
-            _captureDevice = device;
-            _encoder = new VoiceEncoder();
-        }
         try
         {
+            var device = _config.GetCVar(CCVars.VoiceInputDevice);
+            if (_capture != null && device != _captureDevice)
+                StopCapture();
+            if (_capture == null)
+            {
+                if (_timing.RealTime < _retryAfter)
+                    return;
+                _retryAfter = _timing.RealTime + TimeSpan.FromSeconds(2);
+                _capture = _audio.OpenCapture(string.IsNullOrEmpty(device) ? null : device);
+                CaptureError = _capture == null ? "Microphone unavailable or permission denied" : null;
+                if (_capture == null)
+                    return;
+                _retryAfter = TimeSpan.Zero;
+                _captureEntity = _players.LocalEntity;
+                _captureDevice = device;
+                _encoder = new VoiceEncoder();
+            }
             if (_capture.AvailableSamples > 3840)
             {
                 StopCapture(); // Discard stale speech after a stalled frame.
@@ -268,10 +269,22 @@ public sealed partial class VoiceClientSystem : EntitySystem
         {
             CaptureError = e.Message;
             StopCapture();
+            _retryAfter = _timing.RealTime + TimeSpan.FromSeconds(2);
         }
     }
 
-    private void Receive(MsgVoicePlayback message) => EnqueuePlayback(message, false);
+    private void Receive(MsgVoicePlayback message)
+    {
+        try
+        {
+            if (VoiceOpusPacket.IsValid(message.Payload)) EnqueuePlayback(message, false);
+        }
+        catch (Exception)
+        {
+            _playbackRetryAfter = _timing.RealTime + TimeSpan.FromSeconds(2);
+            if (_streams.Remove(message.Speaker, out var failed)) DisposeStream(failed);
+        }
+    }
 
     private void EnqueuePlayback(MsgVoicePlayback message, bool preview)
     {
@@ -279,11 +292,12 @@ public sealed partial class VoiceClientSystem : EntitySystem
             _volumes.GetValueOrDefault(message.Speaker, 1) <= 0 ||
             (!message.Radio && !TryGetEntity(message.Entity, out _))))
             return;
+        if (_timing.RealTime < _playbackRetryAfter) return;
         if (!_streams.TryGetValue(message.Speaker, out var stream))
         {
             if (_streams.Count >= 32)
                 return;
-            var source = _audio.CreateBufferedAudioSource(4, true);
+            var source = _audio.CreateBufferedAudioSource(4, false);
             if (source == null)
                 return;
             source.SampleRate = VoiceProtocol.SampleRate;
@@ -308,18 +322,27 @@ public sealed partial class VoiceClientSystem : EntitySystem
     {
         if (_capture == null)
             return;
-        _capture.Dispose();
+        var capture = _capture;
         _capture = null;
+        try { capture.Dispose(); }
+        catch (Exception) { CaptureError = "Microphone disconnected or unavailable"; }
         _encoder = null;
         _dsp = new VoiceDspPipeline();
         _captureEntity = null;
         MicrophoneLevel = 0;
     }
 
+    private static void DisposeStream(Playback stream)
+    {
+        try { stream.Dispose(); }
+        catch (Exception) { /* A lost audio device must not stop the game. */ }
+    }
+
     private void ClearPlayback()
     {
         foreach (var stream in _streams.Values)
-            stream.Dispose();
+            DisposeStream(stream);
         _streams.Clear();
+        _volumes.Clear();
     }
 }

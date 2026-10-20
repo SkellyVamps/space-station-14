@@ -10,7 +10,7 @@ namespace Content.Shared.Voice;
 /// <summary>Fixed codec contract. Changes require a new protocol version, not a client CVar.</summary>
 public static class VoiceProtocol
 {
-    public const byte Version = 1;
+    public const byte Version = 2;
     public const int SampleRate = 48000;
     public const int FrameMilliseconds = 20;
     public const int SamplesPerFrame = 960;

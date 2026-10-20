@@ -39,6 +39,7 @@ public sealed partial class VoiceRoutingSystem : EntitySystem
     private readonly Dictionary<INetChannel, VoiceIngressGuard> _guards = new();
     private readonly Dictionary<EntityUid, AcousticCache> _cache = new();
     private TimeSpan _nextCleanup;
+    private readonly VoiceStreamRegistry _streams = new();
 
     private sealed record AcousticCache(EntityUid Grid, VoiceAcousticTile Origin, TimeSpan Expires,
         Dictionary<VoiceAcousticTile, float> Costs);
@@ -62,6 +63,7 @@ public sealed partial class VoiceRoutingSystem : EntitySystem
         if (_timing.CurTime < _nextCleanup)
             return;
         _nextCleanup = _timing.CurTime + TimeSpan.FromSeconds(1);
+        _streams.Retain(new HashSet<NetUserId>(_players.Sessions.Select(s => s.UserId)));
         // Bounded to authenticated connections, never client-supplied stream IDs.
         foreach (var channel in new List<INetChannel>(_guards.Keys))
             if (!_players.TryGetSessionByChannel(channel, out var session) || session.Channel != channel)
@@ -83,7 +85,7 @@ public sealed partial class VoiceRoutingSystem : EntitySystem
         if (!guard.TryAccept(message.Sequence, message.Payload.Length, _timing.CurTime, permitted) ||
             session.AttachedEntity is not { } source)
             return;
-        if (_profiles.Refresh(source) != message.ProfileRevision)
+        if (!VoiceOpusPacket.IsValid(message.Payload) || _profiles.Refresh(source) != message.ProfileRevision)
             return;
         var delivered = new HashSet<NetUserId>();
         if (message.Transmission != VoiceTransmission.Radio)
@@ -99,7 +101,8 @@ public sealed partial class VoiceRoutingSystem : EntitySystem
                     continue;
                 _net.ServerSendMessage(new MsgVoicePlayback
                 {
-                    Speaker = session.UserId, Entity = GetNetEntity(source), Sequence = message.Sequence,
+                    Speaker = _streams.Get(listener.UserId, session.UserId, source, message.ProfileRevision),
+                    Entity = NetEntity.Invalid, Sequence = message.Sequence,
                     Gain = 1, Radio = true, Payload = message.Payload,
                 }, listener.Channel);
             }
@@ -149,7 +152,7 @@ public sealed partial class VoiceRoutingSystem : EntitySystem
             delivered.Add(listener.UserId);
             _net.ServerSendMessage(new MsgVoicePlayback
             {
-                Speaker = session.UserId,
+                Speaker = _streams.Get(listener.UserId, session.UserId, source, message.ProfileRevision),
                 Entity = GetNetEntity(source),
                 Sequence = message.Sequence,
                 Gain = gain,

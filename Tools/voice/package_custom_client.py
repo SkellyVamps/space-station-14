@@ -37,18 +37,21 @@ def package(args):
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="skelly-voice-client-") as scratch:
         bundle = pathlib.Path(scratch) / "SkellySS14"
+        client = bundle / "Client"
         run(args.dotnet, "publish", "Voice.ClientHost/Voice.ClientHost.csproj", "-c", "Release",
             "-r", args.runtime, "--self-contained", "true", "-p:FullRelease=true",
             "-p:RobustILLink=false", "-p:PublishTrimmed=false",
             "-p:TargetOS=" + ("Windows" if args.runtime.startswith("win-") else "Linux"),
-            "-o", str(bundle), "-m:1")
+            "-o", str(client), "-m:1")
+        run(args.dotnet, "publish", "Voice.Launcher/Voice.Launcher.csproj", "-c", "Release",
+            "-r", args.runtime, "--self-contained", "true", "-o", str(bundle), "-m:1")
         # Zip the actual engine resources; mount the separately packaged content after them.
-        with zipfile.ZipFile(bundle / "engine-resources.zip", "w", zipfile.ZIP_DEFLATED, strict_timestamps=False) as archive:
+        with zipfile.ZipFile(client / "engine-resources.zip", "w", zipfile.ZIP_DEFLATED, strict_timestamps=False) as archive:
             resource_root = ROOT / "RobustToolbox/Resources"
             for file in sorted(resource_root.rglob("*")):
                 if file.is_file() and not any(part.startswith(".") for part in file.relative_to(resource_root).parts):
                     archive.write(file, file.relative_to(resource_root).as_posix())
-        shutil.copyfile(content, bundle / "game-content.zip")
+        shutil.copyfile(content, client / "game-content.zip")
         notices = bundle / "Notices"
         notices.mkdir()
         shutil.copyfile(ROOT / "RobustToolbox/ThirdParty/Concentus/LICENSE.txt", notices / "Concentus.txt")
@@ -62,7 +65,7 @@ def package(args):
         metadata = {"content_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                     "engine_base": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT / "RobustToolbox", text=True).strip(),
                     "engine_patch_sha256": hashlib.sha256((ROOT / "Tools/voice/robust-voice.patch").read_bytes()).hexdigest(),
-                    "runtime": args.runtime, "channel": "development", "signed": False,
+                    "runtime": args.runtime, "release_sequence": args.release_sequence, "channel": "development", "signed": False,
                     "source_dirty": bool(subprocess.check_output(
                         ["git", "status", "--porcelain", "--ignore-submodules=dirty"], cwd=ROOT, text=True).strip()),
                     "content_sha256": content_digest}
@@ -85,10 +88,13 @@ def package(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", choices=["win-x64", "linux-x64"], required=True)
+    parser.add_argument("--release-sequence", type=int, default=0)
     parser.add_argument("--dotnet", default="dotnet")
     parser.add_argument("--content-zip", help="Use an already-built client content zip (does not rebuild content)")
     parser.add_argument("--output", default=str(ROOT / "release/voice-client"))
     args = parser.parse_args()
+    if args.release_sequence < 0:
+        parser.error("release sequence must be nonnegative")
     executable = shutil.which(args.dotnet)
     if not executable:
         parser.error("dotnet executable was not found")

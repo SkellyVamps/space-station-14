@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a locally built development bundle, then check headless startup with a hard exit after initialization."""
+"""Verify a locally built development bundle, then check headless startup and graceful shutdown."""
 import argparse
 import hashlib
 import json
@@ -29,11 +29,11 @@ def main():
                 raise SystemExit("Bundle ZIP checksum failure")
             packed.extractall(scratch)
         root = pathlib.Path(scratch) / "SkellySS14"
-        executable = root / ("SkellySS14.exe" if os.name == "nt" else "SkellySS14")
+        executable = root / "Client" / ("SkellySS14.exe" if os.name == "nt" else "SkellySS14")
         executable.chmod(executable.stat().st_mode | 0o100)
         try:
             result = subprocess.run([str(executable), "--headless", "--self-contained",
-                                     "--cvar", "res.texturepreloadingenabled=false", "+hardquit"],
+                                     "--cvar", "res.texturepreloadingenabled=false", "+quit"],
                                     cwd=scratch, capture_output=True, text=True, encoding="utf-8",
                                     errors="replace", timeout=60)
         except subprocess.TimeoutExpired as error:
@@ -45,11 +45,11 @@ def main():
         if (result.returncode or "[FATL]" in log or "ENABLING sandboxing" not in log or
                 "Switching to state Content.Client.MainMenu.MainScreen" not in log):
             print(log)
-            raise SystemExit("Client did not complete headless initialization")
+            raise SystemExit(f"Client did not complete headless initialization (exit {result.returncode})")
         info = json.loads((root / "build-info.json").read_text())
         print(json.dumps({"runtime": info["runtime"], "checksum": "passed", "zip_crc": "passed",
                           "headless_startup": "passed", "sandbox_enabled": "ENABLING sandboxing" in log,
-                          "signed": info["signed"], "graceful_shutdown_tested": False}))
+                          "signed": info["signed"], "graceful_shutdown_tested": True}))
 
 
 if __name__ == "__main__":
