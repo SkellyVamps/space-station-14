@@ -1,8 +1,16 @@
 <Control xmlns="https://spacestation14.io"
          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-         xmlns:ui="clr-namespace:Content.Client.Options.UI">
+         xmlns:ui="clr-namespace:Content.Client.Options.UI"
+         xmlns:voice="clr-namespace:Content.Client.Voice">
     <BoxContainer Orientation="Vertical">
         <BoxContainer Orientation="Vertical" Margin="8 8 8 8" VerticalExpand="True">
+            <Label Text="{Loc 'voice-options-title'}" StyleClasses="LabelKeyText" />
+            <CheckBox Name="VoiceEnabledCheckBox" Text="{Loc 'voice-options-enable'}" />
+            <ui:OptionDropDown Name="VoiceDevice" Title="{Loc 'voice-options-device'}" />
+            <ui:OptionSlider Name="VoiceInputGain" Title="{Loc 'voice-options-input'}" />
+            <ui:OptionSlider Name="VoiceOutputGain" Title="{Loc 'voice-options-output'}" />
+            <Label Text="{Loc 'voice-options-ptt-help'}" />
+            <voice:VoiceControls />
             <Label Text="{Loc 'ui-options-volume-label'}"
                    StyleClasses="LabelKeyText"/>
             <BoxContainer Orientation="Vertical" Margin="0 3 0 0">

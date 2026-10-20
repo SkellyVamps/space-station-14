@@ -9,6 +9,8 @@
     snap:
     - Window
   components:
+  - type: VoiceAcousticBarrier
+    extraDistance: 3
   - type: Anchorable
     flags:
     - Anchorable

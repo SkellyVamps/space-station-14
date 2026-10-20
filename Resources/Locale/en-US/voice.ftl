@@ -1,0 +1,15 @@
+voice-options-title = Voice chat (experimental)
+voice-options-enable = Enable voice chat and microphone push-to-talk
+voice-options-device = Microphone
+voice-options-input = Microphone gain
+voice-options-output = Voice volume
+voice-options-ptt-help = Set Push-to-talk in Controls. Microphone is opened only while the key is held.
+ui-options-function-voice-push-to-talk = Push-to-talk
+ui-options-function-voice-radio-push-to-talk = Radio push-to-talk (also speaks locally)
+voice-test-start = Start microphone test (heard only by you)
+voice-test-stop = Stop microphone test
+voice-mic-active = Microphone is active
+voice-mic-closed = Microphone is closed
+voice-player-refresh = Refresh player voice controls
+voice-player-mute = Mute / restore
+voice-speaking = Speaking

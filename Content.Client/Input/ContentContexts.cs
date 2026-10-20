@@ -12,6 +12,8 @@ namespace Content.Client.Input
         public static void SetupContexts(IInputContextContainer contexts)
         {
             var common = contexts.GetContext("common");
+            common.AddFunction(ContentKeyFunctions.VoicePushToTalk);
+            common.AddFunction(ContentKeyFunctions.VoiceRadioPushToTalk);
             common.AddFunction(ContentKeyFunctions.FocusChat);
             common.AddFunction(ContentKeyFunctions.FocusLocalChat);
             common.AddFunction(ContentKeyFunctions.FocusEmote);

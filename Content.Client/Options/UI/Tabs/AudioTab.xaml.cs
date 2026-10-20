@@ -69,6 +69,11 @@ public sealed partial class AudioTab : Control
         Control.AddOptionCheckBox(CCVars.AudioHrtf, AudioHrtfCheckBox);
         Control.AddOptionCheckBox(CVars.AudioMuteUnfocused, MuteUnfocusedCheckBox);
 
+        Control.AddOptionCheckBox(CCVars.VoiceClientEnabled, VoiceEnabledCheckBox);
+        Control.AddOptionDropDown(CCVars.VoiceInputDevice, VoiceDevice, BuildCaptureDeviceOptions());
+        Control.AddOptionPercentSlider(CCVars.VoiceInputGain, VoiceInputGain);
+        Control.AddOptionPercentSlider(CCVars.VoiceOutputGain, VoiceOutputGain);
+
         Control.Initialize();
     }
 
@@ -111,6 +116,17 @@ public sealed partial class AudioTab : Control
             options.Add(new OptionDropDownCVar<string>.ValueOption(device, FormatAudioDeviceLabel(device)));
         }
 
+        return options;
+    }
+
+    private List<OptionDropDownCVar<string>.ValueOption> BuildCaptureDeviceOptions()
+    {
+        var options = new List<OptionDropDownCVar<string>.ValueOption>
+        {
+            new(string.Empty, Loc.GetString("ui-options-audio-device-default")),
+        };
+        foreach (var device in _audio.GetCaptureDevices())
+            options.Add(new(device, FormatAudioDeviceLabel(device)));
         return options;
     }
 

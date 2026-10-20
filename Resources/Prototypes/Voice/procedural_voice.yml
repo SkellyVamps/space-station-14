@@ -1,0 +1,25 @@
+# Existing character voice selections persist in the existing preferences database.
+# These are procedural coloration presets, not identities or real-player voice models.
+- type: voiceFilter
+  id: VoiceMaleHuman
+  pitch: 0.95
+
+- type: voiceFilter
+  id: VoiceFemaleHuman
+  pitch: 1.08
+
+- type: voiceFilter
+  id: SpeciesVox
+  pitch: 1.12
+  drive: 0.08
+
+- type: voiceFilter
+  id: SpeciesDiona
+  pitch: 0.9
+  lowPass: 4800
+  robot: 0.08
+
+- type: voiceFilter
+  id: SpeciesArachnid
+  robot: 0.12
+  drive: 0.06

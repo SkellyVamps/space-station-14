@@ -25,6 +25,10 @@
   id: ClothingMaskGasVoiceChameleon
   suffix: Voice Mask, Chameleon
   components:
+    - type: VoiceModifier
+      pitch: 0.8
+      lowPass: 3500
+      drive: 0.15
     - type: VoiceMask
     - type: UIRequiresLock
       userInterfaceKeys:

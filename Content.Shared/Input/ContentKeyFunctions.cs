@@ -5,6 +5,8 @@ namespace Content.Shared.Input
     [KeyFunctions]
     public static class ContentKeyFunctions
     {
+        public static readonly BoundKeyFunction VoiceRadioPushToTalk = "VoiceRadioPushToTalk";
+        public static readonly BoundKeyFunction VoicePushToTalk = "VoicePushToTalk";
         public static readonly BoundKeyFunction ToggleKnockdown = "ToggleKnockdown";
         public static readonly BoundKeyFunction UseItemInHand = "ActivateItemInHand";
         public static readonly BoundKeyFunction AltUseItemInHand = "AltActivateItemInHand";

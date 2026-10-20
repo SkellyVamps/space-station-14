@@ -5,6 +5,8 @@
   name: closet
   description: A standard-issue Nanotrasen storage unit.
   components:
+  - type: VoiceAcousticBarrier
+    extraDistance: 5
   - type: Animateable
   - type: ResistLocker
   - type: Transform
