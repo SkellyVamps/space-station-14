@@ -10,6 +10,93 @@ index f58bc6a2d..3b8f81a3e 100644
      <PackageVersion Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
      <PackageVersion Include="OpenToolkit.Graphics" Version="4.0.0-pre9.1" />
      <PackageVersion Include="Pidgin" Version="3.5.1" />
+diff --git a/Robust.Client/Audio/AudioManager.Capture.cs b/Robust.Client/Audio/AudioManager.Capture.cs
+new file mode 100644
+index 000000000..461a42d67
+--- /dev/null
++++ b/Robust.Client/Audio/AudioManager.Capture.cs
+@@ -0,0 +1,81 @@
++using System;
++using System.Collections.Generic;
++using OpenTK.Audio.OpenAL;
++
++namespace Robust.Client.Audio;
++
++internal sealed partial class AudioManager
++{
++    public IReadOnlyList<string> GetCaptureDevices()
++    {
++        try
++        {
++            return ALC.GetString((AlcGetStringList) 0x310);
++        }
++        catch (Exception e)
++        {
++            OpenALSawmill.Warning($"Microphone enumeration failed: {e.Message}");
++            return Array.Empty<string>();
++        }
++    }
++
++    public IAudioCapture? OpenCapture(string? device)
++    {
++        try
++        {
++            var handle = ALC.CaptureOpenDevice(device!, 48000, ALFormat.Mono16, 4800);
++            if (handle == ALCaptureDevice.Null)
++                return null;
++            try
++            {
++                ALC.CaptureStart(handle);
++                return new OpenAlCapture(handle);
++            }
++            catch
++            {
++                ALC.CaptureCloseDevice(handle);
++                throw;
++            }
++        }
++        catch (Exception e)
++        {
++            OpenALSawmill.Warning($"Microphone open failed: {e.Message}");
++            return null;
++        }
++    }
++
++    private sealed class OpenAlCapture(ALCaptureDevice handle) : IAudioCapture
++    {
++        private ALCaptureDevice _handle = handle;
++        public int AvailableSamples
++        {
++            get
++            {
++                if (_handle == ALCaptureDevice.Null) return 0;
++                var samples = ALC.GetInteger(_handle, (AlcGetInteger) 0x312);
++                if (ALC.GetError(new ALDevice(_handle.Handle)) != AlcError.NoError)
++                    throw new InvalidOperationException("Microphone disconnected or capture failed");
++                return Math.Max(0, samples);
++            }
++        }
++
++        public unsafe int Read(Span<short> destination)
++        {
++            var count = Math.Min(destination.Length, AvailableSamples);
++            if (count == 0)
++                return 0;
++            fixed (short* data = destination)
++                ALC.CaptureSamples(_handle, data, count);
++            return count;
++        }
++
++        public void Dispose()
++        {
++            if (_handle == ALCaptureDevice.Null)
++                return;
++            ALC.CaptureStop(_handle);
++            ALC.CaptureCloseDevice(_handle);
++            _handle = ALCaptureDevice.Null;
++        }
++    }
++}
 diff --git a/Robust.Client/Audio/AudioManager.Public.cs b/Robust.Client/Audio/AudioManager.Public.cs
 index d1feda5c8..067d4c218 100644
 --- a/Robust.Client/Audio/AudioManager.Public.cs
@@ -37,6 +124,23 @@ index 6c962adf1..52739f5bc 100644
      /// <inheritdoc />
      public void InitializePostWindowing()
      {
+diff --git a/Robust.Client/Audio/IAudioCapture.cs b/Robust.Client/Audio/IAudioCapture.cs
+new file mode 100644
+index 000000000..7770f9771
+--- /dev/null
++++ b/Robust.Client/Audio/IAudioCapture.cs
+@@ -0,0 +1,11 @@
++using System;
++
++namespace Robust.Client.Audio;
++
++/// <summary>Game-thread-only microphone handle. Dispose closes the device and discards queued audio.</summary>
++public interface IAudioCapture : IDisposable
++{
++    int AvailableSamples { get; }
++    /// <summary>Reads available mono 48 kHz PCM. Returns zero after failure or disposal.</summary>
++    int Read(Span<short> destination);
++}
 diff --git a/Robust.Client/Audio/IAudioInternal.cs b/Robust.Client/Audio/IAudioInternal.cs
 index 33ee4720a..66e1b4e62 100644
 --- a/Robust.Client/Audio/IAudioInternal.cs
@@ -68,6 +172,62 @@ index 6f8a6e1a0..85de10ee4 100644
      IAudioSource? CreateAudioSource(AudioStream stream);
  
      AudioStream LoadAudioOggVorbis(Stream stream, string? name = null);
+diff --git a/Robust.Client/Audio/VoiceCodec.cs b/Robust.Client/Audio/VoiceCodec.cs
+new file mode 100644
+index 000000000..e349ecafb
+--- /dev/null
++++ b/Robust.Client/Audio/VoiceCodec.cs
+@@ -0,0 +1,50 @@
++using System;
++using Concentus.Enums;
++using Concentus.Structs;
++
++namespace Robust.Client.Audio;
++
++/// <summary>48 kHz mono, 20 ms managed Opus. Keeps codec implementation outside content sandbox.</summary>
++public sealed class VoiceEncoder
++{
++#pragma warning disable CS0618 // Deliberately choose managed implementation; no native library probing.
++    private readonly OpusEncoder _encoder = new(48000, 1, OpusApplication.OPUS_APPLICATION_VOIP)
++    {
++        Bitrate = 24000,
++        Complexity = 5,
++        UseInbandFEC = false,
++        UseDTX = false,
++    };
++#pragma warning restore CS0618
++
++    public int Encode(ReadOnlySpan<short> pcm, Span<byte> encoded)
++    {
++        if (pcm.Length != 960 || encoded.Length < 512)
++            throw new ArgumentException("Voice requires 960 PCM samples and 512 output bytes");
++        return _encoder.Encode(pcm, 960, encoded, 512);
++    }
++}
++
++/// <summary>One decoder per authenticated speaker. Empty input invokes Opus packet loss concealment.</summary>
++public sealed class VoiceDecoder
++{
++#pragma warning disable CS0618
++    private readonly OpusDecoder _decoder = new(48000, 1);
++#pragma warning restore CS0618
++
++    public int Decode(ReadOnlySpan<byte> encoded, Span<float> pcm)
++    {
++        if (encoded.Length > 512 || pcm.Length != 960)
++            return 0;
++        try
++        {
++            return _decoder.Decode(encoded, pcm, 960);
++        }
++        catch (Exception)
++        {
++            pcm.Clear();
++            _decoder.ResetState();
++            return 0;
++        }
++    }
++}
 diff --git a/Robust.Client/ContentStart.cs b/Robust.Client/ContentStart.cs
 index 5e947233e..50511dbdf 100644
 --- a/Robust.Client/ContentStart.cs
@@ -162,3 +322,46 @@ index ea2250e89..4239c2342 100644
              }
  
              if (TryGetVar("ROBUST_AUTH_ALLOW_HWID", out var allowHwid))
+diff --git a/ThirdParty/Concentus/LICENSE.txt b/ThirdParty/Concentus/LICENSE.txt
+new file mode 100644
+index 000000000..9250838b7
+--- /dev/null
++++ b/ThirdParty/Concentus/LICENSE.txt
+@@ -0,0 +1,37 @@
++Copyright (c) by various holding parties, including (but not limited to):
++Skype Limited, Xiph.Org Foundation, CSIRO, Microsoft Corporation,
++Jean-Marc Valin, Gregory Maxwell, Mark Borgerding, Timothy B. Terriberry,
++Logan Stromberg. All rights are reserved by their respective holders.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are met:
++
++* Redistributions of source code must retain the above copyright notice, this
++  list of conditions and the following disclaimer.
++
++* Redistributions in binary form must reproduce the above copyright notice,
++  this list of conditions and the following disclaimer in the documentation
++  and/or other materials provided with the distribution.
++
++* Neither the name of Internet Society, IETF or IETF Trust, nor the
++   names of specific contributors, may be used to endorse or promote
++   products derived from this software without specific prior written
++   permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
++FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++
++This repository and its redistributable packages contain independently compiled
++versions of the Opus C reference library, which is maintained by Xiph.org and the
++Opus open-source contributors. The source code for these libraries is freely available
++at https://gitlab.xiph.org/xiph/opus/-/tags/v1.5.2, and all binaries are being
++redistributed to you under the same terms of the general Opus license dictated above.

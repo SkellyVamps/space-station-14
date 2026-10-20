@@ -1,0 +1,21 @@
+# Use with: Robust.Server --config-file voice-test.toml
+# Separate private test server. Keep its normal user_data isolated from production.
+[net]
+port = 1212
+bindto = "0.0.0.0"
+max_connections = 8
+
+[auth]
+mode = 1
+allowlocal = false
+
+[hub]
+advertise = false
+
+[status]
+enabled = true
+
+[voice]
+enabled = true
+range = 10.0
+minimum_pressure = 5.0

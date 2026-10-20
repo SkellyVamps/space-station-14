@@ -101,6 +101,7 @@ public sealed class VoiceFoundationTest
                 pcm[i] = (short) (Math.Sin(2 * Math.PI * 220 * (frame * 960 + i) / 48000) * 12000);
             var length = encoder.Encode(pcm, encoded);
             Assert.That(length, Is.InRange(1, 512));
+            Assert.That(VoiceOpusPacket.IsValid(encoded.AsSpan(0, length)));
             Assert.That(decoder.Decode(encoded.AsSpan(0, length), decoded), Is.EqualTo(960));
             foreach (var sample in decoded)
             {

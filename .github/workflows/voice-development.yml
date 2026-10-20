@@ -21,7 +21,7 @@ jobs:
       - name: Apply pinned engine patch
         run: python3 Tools/voice/prepare_engine.py
       - name: Build and run focused voice checks
-        run: dotnet test Content.Tests/Content.Tests.csproj -m:1 --filter FullyQualifiedName~VoiceFoundationTest --logger "trx;LogFileName=voice.trx"
+        run: dotnet test Content.Tests/Content.Tests.csproj -m:1 --filter FullyQualifiedName~Content.Tests.Shared.Voice --logger "trx;LogFileName=voice.trx"
       - name: Check prototypes and client sandbox
         run: dotnet test Content.IntegrationTests/Content.IntegrationTests.csproj -m:1 --filter "FullyQualifiedName~PrototypesHaveKnownComponents|FullyQualifiedName~SandboxTest" --logger "trx;LogFileName=voice-integration.trx"
       - uses: actions/upload-artifact@v4
