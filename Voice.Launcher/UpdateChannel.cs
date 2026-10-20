@@ -40,6 +40,9 @@ public static class UpdateChannel
         var trust = Configuration();
         if (!Enabled || !Uri.TryCreate(trust.ManifestUrl.Replace("{runtime}", Runtime), UriKind.Absolute, out var url) || url.Scheme != "https")
             throw new InvalidDataException("Update channel unavailable");
+        Directory.CreateDirectory(Root);
+        // Serialize installs and monotonic version-state updates across launcher processes.
+        using var updateLock = new FileStream(Path.Combine(Root, "update.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         using var download = new HttpClient { Timeout = TimeSpan.FromMinutes(10), MaxResponseContentBufferSize = 65536 };
         var envelope = await download.GetStringAsync(url, cancel);
         var current = Current();

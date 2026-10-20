@@ -19,7 +19,7 @@ public static class ServerConnection
     public static async Task<Target> GetTarget(HttpClient http, Uri address, CancellationToken cancel)
     {
         var endpoint = new UriBuilder(address)
-        { Scheme = address.Scheme == "ss14s" ? "https" : "http", Port = address.Port == -1 ? 1212 : address.Port, Path = "info" }.Uri;
+        { Scheme = address.Scheme == "ss14s" ? "https" : "http", Port = address.Port == -1 ? (address.Scheme == "ss14s" ? 443 : 1212) : address.Port, Path = "info" }.Uri;
         using var response = await http.GetAsync(endpoint, HttpCompletionOption.ResponseHeadersRead, cancel);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength > 65536) throw new InvalidDataException("Server information too large");
@@ -40,7 +40,7 @@ public static class ServerConnection
         var key = auth.GetProperty("public_key").GetString();
         if (string.IsNullOrWhiteSpace(key) || Convert.FromBase64String(key).Length is < 32 or > 4096)
             throw new InvalidDataException("Invalid server authentication key");
-        var connect = new UriBuilder("udp", address.Host, address.Port == -1 ? 1212 : address.Port).Uri;
+        var connect = new UriBuilder("udp", address.Host, endpoint.Port).Uri;
         if (info.RootElement.TryGetProperty("connect_address", out var advertised) && advertised.ValueKind == JsonValueKind.String &&
             !string.IsNullOrWhiteSpace(advertised.GetString()))
         {

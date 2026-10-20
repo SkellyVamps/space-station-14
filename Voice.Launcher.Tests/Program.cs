@@ -53,6 +53,16 @@ using (var server = new HttpClient(new Fake(_ => Task.FromResult(Reply(new
     var target = await ServerConnection.GetTarget(server, ServerConnection.ParseAddress("ss14s://web.example.com:443"), default);
     if (target.Endpoint.Host != "game.example.com" || target.Endpoint.Port != 2000) throw new Exception("Advertised game address ignored");
 }
+foreach (var (address, expectedPort) in new[] { ("ss14://example.com", 1212), ("ss14s://example.com", 443) })
+{
+    using var server = new HttpClient(new Fake(request =>
+    {
+        if (request.RequestUri!.Port != expectedPort) throw new Exception("Incorrect API default port");
+        return Task.FromResult(Reply(new { auth = new { mode = "Required", public_key = Convert.ToBase64String(new byte[32]) } }));
+    }));
+    var target = await ServerConnection.GetTarget(server, ServerConnection.ParseAddress(address), default);
+    if (target.Endpoint.Port != expectedPort) throw new Exception("Incorrect default game port");
+}
 using (var rsa = RSA.Create(2048))
 {
     var manifest = new ReleaseManifest(12, "linux-x64", "https://example.com/client.zip", new string('A', 64), 123);

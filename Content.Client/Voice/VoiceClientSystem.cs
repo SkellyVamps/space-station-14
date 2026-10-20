@@ -300,11 +300,19 @@ public sealed partial class VoiceClientSystem : EntitySystem
             var source = _audio.CreateBufferedAudioSource(4, false);
             if (source == null)
                 return;
-            source.SampleRate = VoiceProtocol.SampleRate;
-            source.Global = false;
-            source.RolloffFactor = 0; // Server supplies acoustic distance gain.
-            stream = new Playback(source);
-            _streams.Add(message.Speaker, stream);
+            try
+            {
+                source.SampleRate = VoiceProtocol.SampleRate;
+                source.Global = false;
+                source.RolloffFactor = 0; // Server supplies acoustic distance gain.
+                stream = new Playback(source);
+                _streams.Add(message.Speaker, stream);
+            }
+            catch
+            {
+                try { source.Dispose(); } catch (Exception) { }
+                throw;
+            }
         }
         if (stream.Entity != message.Entity)
         {

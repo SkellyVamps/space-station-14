@@ -5,6 +5,9 @@ on:
     branches: [feature/integrated-voice]
     paths:
       - Content.Server/**
+      - Content.Client/**
+      - Voice.Launcher/**
+      - Voice.ClientHost/**
       - Content.Shared/**
       - Resources/**
       - Tools/voice/**
