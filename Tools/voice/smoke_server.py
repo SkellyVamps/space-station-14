@@ -9,6 +9,7 @@ import socket
 import subprocess
 import tempfile
 import time
+import tomllib
 import urllib.request
 import zipfile
 
@@ -29,6 +30,11 @@ def main():
                 path = pathlib.PurePosixPath(entry.filename)
                 if path.is_absolute() or '..' in path.parts or '\\' in entry.filename:
                     raise SystemExit('Unsafe server archive layout')
+            preset = tomllib.loads(bundle.read('voice-local.toml').decode('utf-8'))
+            if (preset['net']['bindto'] != '127.0.0.1' or preset['status']['bind'] != '127.0.0.1:1212'
+                    or preset['auth']['mode'] != 1 or preset['auth']['allowlocal']
+                    or preset['hub']['advertise'] or not preset['voice']['enabled']):
+                raise SystemExit('Local test preset must be loopback-only with normal authentication and voice enabled')
             if 'Content.Client.zip' not in bundle.namelist():
                 raise SystemExit('Server must include its prebuilt Hybrid ACZ client archive')
             if bundle.testzip() is not None:
@@ -39,7 +45,7 @@ def main():
         with socket.socket() as probe:
             probe.bind(('127.0.0.1', 0))
             port = probe.getsockname()[1]
-        command = [str(executable), '--config-file', 'voice-test.toml', '--data-dir', str(root / 'test-data'),
+        command = [str(executable), '--config-file', 'voice-local.toml', '--data-dir', str(root / 'test-data'),
                    '--cvar', 'net.bindto=127.0.0.1', '--cvar', 'net.port=' + str(port),
                    '--cvar', 'status.bind=127.0.0.1:' + str(port)]
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

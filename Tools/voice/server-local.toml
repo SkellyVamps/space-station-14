@@ -1,0 +1,22 @@
+# One-machine test: Robust.Server --config-file voice-local.toml --data-dir voice-local-data
+# Listen only on this computer; still requires normal SS14 authentication.
+[net]
+port = 1212
+bindto = "127.0.0.1"
+max_connections = 8
+
+[auth]
+mode = 1
+allowlocal = false
+
+[hub]
+advertise = false
+
+[status]
+enabled = true
+bind = "127.0.0.1:1212"
+
+[voice]
+enabled = true
+range = 10.0
+minimum_pressure = 5.0

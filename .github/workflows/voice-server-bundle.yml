@@ -16,7 +16,15 @@ permissions:
   contents: read
 jobs:
   package:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
@@ -28,13 +36,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Build matching self-contained Linux server
-        run: python Tools/voice/package_server.py
+      - name: Build matching self-contained server
+        run: python Tools/voice/package_server.py --runtime ${{ matrix.runtime }}
       - name: Verify authenticated startup and shutdown
-        run: python Tools/voice/smoke_server.py release/voice-server/SkellySS14-voice-server-linux-x64.zip
+        run: python Tools/voice/smoke_server.py release/voice-server/SkellySS14-voice-server-${{ matrix.runtime }}.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: SkellySS14-voice-server-linux-x64
+          name: SkellySS14-voice-server-${{ matrix.runtime }}
           path: release/voice-server/*
           if-no-files-found: error
           compression-level: 0

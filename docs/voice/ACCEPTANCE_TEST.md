@@ -3,12 +3,14 @@
 This is a private development test. Do not replace the production server yet. Use client and server
 artifacts built from the **same commit**, and keep a note of that SHA and platform for every result.
 
+For a server and client on one computer, start with [Local testing](LOCAL_TESTING.md).
+
 ## Obtain matching builds
 
 On the feature branch, use these GitHub Actions runs:
 
 - **Custom voice client development bundles**: Windows or Linux `SkellySS14-voice-dev-*` artifact.
-- **Matching voice server development bundle**: `SkellySS14-voice-server-linux-x64` artifact.
+- **Matching voice server development bundle**: Windows or Linux `SkellySS14-voice-server-*` artifact.
 
 GitHub wraps each artifact in a ZIP. Extract that, verify the included archive's SHA-256 against its
 sidecar, then extract the actual game/server archive. These are unsigned development builds.
