@@ -17,7 +17,8 @@ Their `content_commit`, `engine_base` and `engine_patch_sha256` must match.
 
 ## Private server
 
-The Linux server bundle includes its .NET runtime. Native Linux dependencies may still be needed.
+The Linux server bundle includes its .NET runtime and prebuilt client archive for the launcher `/info`
+endpoint. Native Linux dependencies may still be needed.
 Extract to a new directory on the server host, separate from the existing server and saves:
 
 ```sh

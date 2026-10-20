@@ -29,6 +29,8 @@ def main():
                 path = pathlib.PurePosixPath(entry.filename)
                 if path.is_absolute() or '..' in path.parts or '\\' in entry.filename:
                     raise SystemExit('Unsafe server archive layout')
+            if 'Content.Client.zip' not in bundle.namelist():
+                raise SystemExit('Server must include its prebuilt Hybrid ACZ client archive')
             if bundle.testzip() is not None:
                 raise SystemExit('Server ZIP integrity failure')
             bundle.extractall(root)
@@ -45,17 +47,17 @@ def main():
             process = subprocess.Popen(command, cwd=root, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, text=True)
             error = None
             try:
-                deadline = time.monotonic() + 120
+                deadline = time.monotonic() + 240
                 info = None
                 while time.monotonic() < deadline and process.poll() is None:
                     try:
-                        with opener.open('http://127.0.0.1:' + str(port) + '/info', timeout=1) as response:
+                        with opener.open('http://127.0.0.1:' + str(port) + '/info', timeout=5) as response:
                             info = json.load(response)
                         break
                     except (OSError, ValueError):
                         time.sleep(0.25)
                 if info is None:
-                    raise RuntimeError('Server did not expose /info within 120 seconds')
+                    raise RuntimeError('Server did not expose /info within 240 seconds')
                 if info.get('auth', {}).get('mode') not in ('Required', 1):
                     raise RuntimeError('Server did not require normal authentication')
                 process.stdin.write('shutdown\n')

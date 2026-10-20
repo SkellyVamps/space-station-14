@@ -27,12 +27,15 @@ def main():
         subprocess.run(command, cwd=ROOT, check=True)
 
     run(sys.executable, str(ROOT / 'Tools/voice/prepare_engine.py'))
+    # /info prepares the client manifest even when players use our bundled custom client.
+    # Embed Hybrid ACZ so a clean server never falls back to repository-only build paths.
+    run(dotnet, 'build', 'Content.Client', '-c', 'Release', '-p:FullRelease=true', '-m:1')
     run(dotnet, 'build', 'Content.Server', '-c', 'Release', '-p:FullRelease=true', '-m:1')
     run(dotnet, 'publish', 'RobustToolbox/Robust.Server', '-c', 'Release', '-r', 'linux-x64',
         '--self-contained', 'true', '-p:FullRelease=true', '-p:RobustILLink=false', '-p:PublishTrimmed=false', '-m:1')
     run(dotnet, 'build', 'Content.Packaging', '-c', 'Release', '-m:1')
     run(dotnet, 'run', '--project', 'Content.Packaging', '-c', 'Release', '--no-build', '--',
-        'server', '--skip-build', '--configuration', 'Release', '--platform', 'linux-x64', '--no-wipe-release')
+        'server', '--skip-build', '--hybrid-acz', '--configuration', 'Release', '--platform', 'linux-x64', '--no-wipe-release')
     source = ROOT / 'release/SS14.Server_linux-x64.zip'
     output = ROOT / 'release/voice-server'
     output.mkdir(parents=True, exist_ok=True)
