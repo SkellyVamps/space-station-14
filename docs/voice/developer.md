@@ -130,6 +130,8 @@ mob state change, and every 0.5 s as a safety net.
 ### Add a new effect
 
 1. Write an `IVoiceProcessor` in `Content.Shared/Voice/Dsp` (allocation-free `Process`, any block size, `Reset`).
+   Content code runs in the client sandbox: no `stackalloc`, `unsafe`, pointers or P/Invoke, or the client refuses to
+   load it. `SandboxTest` in the integration tests catches this.
 2. Add a `VoiceEffect` subclass with `[DataField]`s that returns it from `CreateProcessor`.
 3. Use it from YAML with `!type:YourVoiceEffect`. Add it to `VoiceDspTest.ProcessorsAreStableWithExtremeInput`.
 

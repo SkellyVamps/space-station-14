@@ -54,6 +54,7 @@ public sealed partial class VoiceCaptureSystem : EntitySystem
     private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(3);
 
     private readonly HashSet<object> _users = new();
+    private readonly short[] _flushScratch = new short[1024];
     private IAudioCaptureDevice? _device;
     private string _deviceSetting = string.Empty;
     private TimeSpan _lastUsed;
@@ -143,8 +144,8 @@ public sealed partial class VoiceCaptureSystem : EntitySystem
     /// </summary>
     public void Flush()
     {
-        Span<short> scratch = stackalloc short[1024];
-        while (Read(scratch) == scratch.Length)
+        // No stackalloc: content code must pass the sandbox's IL verification.
+        while (Read(_flushScratch) == _flushScratch.Length)
         {
         }
     }
