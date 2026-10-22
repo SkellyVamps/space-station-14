@@ -1,0 +1,1047 @@
+From 926a57c54efef932cc95c4d74d357859f6ed45ab Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 22 Oct 2026 00:42:27 +0000
+Subject: [PATCH] Add realtime audio capture, streaming sources and Opus voice
+ codec
+
+Adds IRealtimeAudioManager (ALC microphone capture + streaming PCM sources)
+and a managed Opus voice encoder/decoder backed by Concentus (BSD-3-Clause),
+so content can implement voice chat without access to OpenAL internals.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01D96T2yaoC7tYy5GtfNUCaX
+---
+ Directory.Packages.props                      |   1 +
+ RELEASE-NOTES.md                              |   3 +-
+ Robust.Client/Audio/AudioManager.Realtime.cs  |  70 +++++++
+ Robust.Client/Audio/HeadlessAudioManager.cs   |  13 +-
+ .../Audio/Realtime/AudioCaptureDevice.cs      | 112 ++++++++++
+ .../Audio/Realtime/IAudioCaptureDevice.cs     |  50 +++++
+ .../Audio/Realtime/IRealtimeAudioManager.cs   |  42 ++++
+ .../Audio/Sources/StreamingAudioSource.cs     | 194 ++++++++++++++++++
+ Robust.Client/ClientIoC.cs                    |   3 +
+ .../Audio/OpusVoiceCodecTest.cs               |  90 ++++++++
+ Robust.Shared/Audio/Codecs/OpusPacket.cs      |  85 ++++++++
+ .../Audio/Codecs/OpusVoiceDecoder.cs          |  72 +++++++
+ .../Audio/Codecs/OpusVoiceEncoder.cs          |  90 ++++++++
+ .../Audio/Sources/IStreamingAudioSource.cs    |  43 ++++
+ Robust.Shared/Robust.Shared.csproj            |   1 +
+ 15 files changed, 867 insertions(+), 2 deletions(-)
+ create mode 100644 Robust.Client/Audio/AudioManager.Realtime.cs
+ create mode 100644 Robust.Client/Audio/Realtime/AudioCaptureDevice.cs
+ create mode 100644 Robust.Client/Audio/Realtime/IAudioCaptureDevice.cs
+ create mode 100644 Robust.Client/Audio/Realtime/IRealtimeAudioManager.cs
+ create mode 100644 Robust.Client/Audio/Sources/StreamingAudioSource.cs
+ create mode 100644 Robust.Shared.Tests/Audio/OpusVoiceCodecTest.cs
+ create mode 100644 Robust.Shared/Audio/Codecs/OpusPacket.cs
+ create mode 100644 Robust.Shared/Audio/Codecs/OpusVoiceDecoder.cs
+ create mode 100644 Robust.Shared/Audio/Codecs/OpusVoiceEncoder.cs
+ create mode 100644 Robust.Shared/Audio/Sources/IStreamingAudioSource.cs
+
+diff --git a/Directory.Packages.props b/Directory.Packages.props
+index f58bc6a2d..ce9073cc7 100644
+--- a/Directory.Packages.props
++++ b/Directory.Packages.props
+@@ -45,6 +45,7 @@
+     <PackageVersion Include="NUnit" Version="4.4.0" />
+     <PackageVersion Include="NUnit.Analyzers" Version="4.11.2" />
+     <PackageVersion Include="NUnit3TestAdapter" Version="5.2.0" />
++    <PackageVersion Include="Concentus" Version="2.2.2" />
+     <PackageVersion Include="Nett" Version="0.15.0" />
+     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
+     <PackageVersion Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
+diff --git a/RELEASE-NOTES.md b/RELEASE-NOTES.md
+index 34a2f0f15..535d2858e 100644
+--- a/RELEASE-NOTES.md
++++ b/RELEASE-NOTES.md
+@@ -14,7 +14,8 @@ Don't change the format without looking at the script!
+ 
+ ### New features
+ 
+-*None yet*
++* Added `IRealtimeAudioManager` for real-time audio: microphone capture (`OpenCaptureDevice`, `IAudioCaptureDevice`) and streaming PCM playback (`CreateStreamingSource`, `IStreamingAudioSource`).
++* Added a managed Opus voice codec (`OpusVoiceEncoder`, `OpusVoiceDecoder`, `OpusPacket`) in `Robust.Shared.Audio.Codecs`, backed by Concentus (BSD-3-Clause).
+ 
+ ### Bugfixes
+ 
+diff --git a/Robust.Client/Audio/AudioManager.Realtime.cs b/Robust.Client/Audio/AudioManager.Realtime.cs
+new file mode 100644
+index 000000000..be253da2e
+--- /dev/null
++++ b/Robust.Client/Audio/AudioManager.Realtime.cs
+@@ -0,0 +1,70 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using OpenTK.Audio.OpenAL;
++using Robust.Client.Audio.Realtime;
++using Robust.Client.Audio.Sources;
++using Robust.Shared.Audio.Sources;
++
++namespace Robust.Client.Audio;
++
++internal sealed partial class AudioManager : IRealtimeAudioManager
++{
++    public bool CaptureSupported => _audioInitialized && ALC.IsExtensionPresent(ALDevice.Null, "ALC_EXT_CAPTURE");
++
++    public IReadOnlyList<string> GetCaptureDevices()
++    {
++        if (!CaptureSupported)
++            return Array.Empty<string>();
++
++        return ALC.GetStringList(GetEnumerationStringList.CaptureDeviceSpecifier).ToList();
++    }
++
++    public string? GetDefaultCaptureDevice()
++    {
++        if (!CaptureSupported)
++            return null;
++
++        return ALC.GetString(ALDevice.Null, AlcGetString.CaptureDefaultDeviceSpecifier);
++    }
++
++    public IAudioCaptureDevice? OpenCaptureDevice(string? deviceName, int sampleRate, int bufferSamples)
++    {
++        if (!CaptureSupported)
++            return null;
++
++        if (string.IsNullOrEmpty(deviceName))
++            deviceName = null;
++
++        var device = ALC.CaptureOpenDevice(deviceName, sampleRate, ALFormat.Mono16, bufferSamples);
++        if (device == ALCaptureDevice.Null)
++        {
++            OpenALSawmill.Warning("Unable to open capture device '{0}': {1}",
++                deviceName ?? "<default>", ALC.GetError(ALDevice.Null));
++            return null;
++        }
++
++        var name = deviceName ?? GetDefaultCaptureDevice() ?? "<default>";
++        OpenALSawmill.Debug("Opened capture device '{0}' at {1} Hz", name, sampleRate);
++        return new AudioCaptureDevice(device, name, sampleRate, OpenALSawmill);
++    }
++
++    public IStreamingAudioSource? CreateStreamingSource(int sampleRate, int maxQueuedChunks = 16)
++    {
++        if (maxQueuedChunks <= 0)
++            throw new ArgumentOutOfRangeException(nameof(maxQueuedChunks));
++
++        var source = AL.GenSource();
++
++        if (!AL.IsSource(source))
++        {
++            OpenALSawmill.Error("Failed to generate streaming source. Too many simultaneous audio streams?");
++            return null;
++        }
++
++        var audioSource = new StreamingAudioSource(this, source, AL.GenBuffers(maxQueuedChunks), sampleRate);
++        ApplyDefaultParams(audioSource);
++        _checkAlError();
++        return audioSource;
++    }
++}
+diff --git a/Robust.Client/Audio/HeadlessAudioManager.cs b/Robust.Client/Audio/HeadlessAudioManager.cs
+index 6c962adf1..ac2581ea4 100644
+--- a/Robust.Client/Audio/HeadlessAudioManager.cs
++++ b/Robust.Client/Audio/HeadlessAudioManager.cs
+@@ -2,6 +2,7 @@ using System;
+ using System.Collections.Generic;
+ using System.IO;
+ using System.Numerics;
++using Robust.Client.Audio.Realtime;
+ using Robust.Shared.Audio;
+ using Robust.Shared.Audio.AudioLoading;
+ using Robust.Shared.Audio.Sources;
+@@ -12,8 +13,18 @@ namespace Robust.Client.Audio;
+ /// <summary>
+ /// Headless client audio.
+ /// </summary>
+-internal sealed class HeadlessAudioManager : IAudioInternal
++internal sealed class HeadlessAudioManager : IAudioInternal, IRealtimeAudioManager
+ {
++    public bool CaptureSupported => false;
++
++    public IReadOnlyList<string> GetCaptureDevices() => Array.Empty<string>();
++
++    public string? GetDefaultCaptureDevice() => null;
++
++    public IAudioCaptureDevice? OpenCaptureDevice(string? deviceName, int sampleRate, int bufferSamples) => null;
++
++    public IStreamingAudioSource? CreateStreamingSource(int sampleRate, int maxQueuedChunks = 16) => null;
++
+ 
+     private readonly IReadOnlyList<string> _emptyDevices = Array.Empty<string>();
+     private int _audioBuffer;
+diff --git a/Robust.Client/Audio/Realtime/AudioCaptureDevice.cs b/Robust.Client/Audio/Realtime/AudioCaptureDevice.cs
+new file mode 100644
+index 000000000..5a5102dca
+--- /dev/null
++++ b/Robust.Client/Audio/Realtime/AudioCaptureDevice.cs
+@@ -0,0 +1,112 @@
++using System;
++using OpenTK.Audio.OpenAL;
++using Robust.Shared.Log;
++
++namespace Robust.Client.Audio.Realtime;
++
++/// <summary>
++/// OpenAL (ALC) capture device wrapper.
++/// </summary>
++internal sealed class AudioCaptureDevice : IAudioCaptureDevice
++{
++    // ALC_CONNECTED from ALC_EXT_disconnect, not exposed by OpenTK's enum.
++    private const AlcGetInteger AlcConnected = (AlcGetInteger) 0x313;
++
++    private readonly ISawmill _sawmill;
++    private readonly bool _supportsDisconnect;
++    private ALCaptureDevice _device;
++
++    public string DeviceName { get; }
++    public int SampleRate { get; }
++    public bool Capturing { get; private set; }
++    public bool Disposed => _device == ALCaptureDevice.Null;
++
++    public AudioCaptureDevice(ALCaptureDevice device, string deviceName, int sampleRate, ISawmill sawmill)
++    {
++        _device = device;
++        DeviceName = deviceName;
++        SampleRate = sampleRate;
++        _sawmill = sawmill;
++        _supportsDisconnect = ALC.IsExtensionPresent(new ALDevice(device.Handle), "ALC_EXT_disconnect");
++    }
++
++    public bool Connected
++    {
++        get
++        {
++            if (Disposed)
++                return false;
++
++            if (!_supportsDisconnect)
++                return true;
++
++            return ALC.GetInteger(_device, AlcConnected) != 0;
++        }
++    }
++
++    public void Start()
++    {
++        if (Disposed || Capturing)
++            return;
++
++        ALC.CaptureStart(_device);
++        Capturing = true;
++    }
++
++    public void Stop()
++    {
++        if (Disposed || !Capturing)
++            return;
++
++        ALC.CaptureStop(_device);
++        Capturing = false;
++    }
++
++    public int AvailableSamples
++    {
++        get
++        {
++            if (Disposed)
++                return 0;
++
++            return Math.Max(0, ALC.GetInteger(_device, AlcGetInteger.CaptureSamples));
++        }
++    }
++
++    public unsafe int ReadSamples(Span<short> buffer)
++    {
++        if (Disposed)
++            return 0;
++
++        var count = Math.Min(buffer.Length, AvailableSamples);
++        if (count <= 0)
++            return 0;
++
++        fixed (short* ptr = buffer)
++        {
++            ALC.CaptureSamples(_device, ptr, count);
++        }
++
++        var err = ALC.GetError(new ALDevice(_device.Handle));
++        if (err != AlcError.NoError)
++        {
++            _sawmill.Warning($"Error reading capture samples from '{DeviceName}': {err}");
++            return 0;
++        }
++
++        return count;
++    }
++
++    public void Dispose()
++    {
++        if (Disposed)
++            return;
++
++        if (Capturing)
++            ALC.CaptureStop(_device);
++
++        ALC.CaptureCloseDevice(_device);
++        _device = ALCaptureDevice.Null;
++        Capturing = false;
++    }
++}
+diff --git a/Robust.Client/Audio/Realtime/IAudioCaptureDevice.cs b/Robust.Client/Audio/Realtime/IAudioCaptureDevice.cs
+new file mode 100644
+index 000000000..15a7e1d71
+--- /dev/null
++++ b/Robust.Client/Audio/Realtime/IAudioCaptureDevice.cs
+@@ -0,0 +1,50 @@
++using System;
++using Robust.Shared.Analyzers;
++
++namespace Robust.Client.Audio.Realtime;
++
++/// <summary>
++/// An open audio input (microphone) device. Produces mono signed 16-bit samples.
++/// </summary>
++/// <remarks>
++/// Must be polled regularly with <see cref="ReadSamples"/>; the device has a fixed internal ring buffer and drops
++/// samples if it is not drained in time.
++/// </remarks>
++[NotContentImplementable]
++public interface IAudioCaptureDevice : IDisposable
++{
++    /// <summary>
++    /// The name of the device that was actually opened.
++    /// </summary>
++    string DeviceName { get; }
++
++    int SampleRate { get; }
++
++    /// <summary>
++    /// Whether <see cref="Start"/> has been called and the device is capturing.
++    /// </summary>
++    bool Capturing { get; }
++
++    /// <summary>
++    /// False if the backend reports the device was disconnected (e.g. a USB microphone was unplugged).
++    /// A disconnected device never recovers; dispose it and open a new one.
++    /// </summary>
++    bool Connected { get; }
++
++    bool Disposed { get; }
++
++    void Start();
++
++    void Stop();
++
++    /// <summary>
++    /// Number of captured samples that can currently be read.
++    /// </summary>
++    int AvailableSamples { get; }
++
++    /// <summary>
++    /// Reads up to <c>buffer.Length</c> captured samples.
++    /// </summary>
++    /// <returns>Number of samples written into <paramref name="buffer"/>.</returns>
++    int ReadSamples(Span<short> buffer);
++}
+diff --git a/Robust.Client/Audio/Realtime/IRealtimeAudioManager.cs b/Robust.Client/Audio/Realtime/IRealtimeAudioManager.cs
+new file mode 100644
+index 000000000..8e22433b5
+--- /dev/null
++++ b/Robust.Client/Audio/Realtime/IRealtimeAudioManager.cs
+@@ -0,0 +1,42 @@
++using System.Collections.Generic;
++using Robust.Shared.Analyzers;
++using Robust.Shared.Audio.Sources;
++
++namespace Robust.Client.Audio.Realtime;
++
++/// <summary>
++/// Low-level primitives for real-time audio: microphone capture and streaming playback.
++/// Intended for things like voice chat that need to push PCM to and from the audio backend at runtime.
++/// </summary>
++[NotContentImplementable]
++public interface IRealtimeAudioManager
++{
++    /// <summary>
++    /// Whether audio capture is possible at all. False on headless clients or if the backend lacks capture support.
++    /// </summary>
++    bool CaptureSupported { get; }
++
++    /// <summary>
++    /// Names of the available capture (microphone) devices. Can be passed to <see cref="OpenCaptureDevice"/>.
++    /// </summary>
++    IReadOnlyList<string> GetCaptureDevices();
++
++    string? GetDefaultCaptureDevice();
++
++    /// <summary>
++    /// Opens a capture device.
++    /// </summary>
++    /// <param name="deviceName">Device to open, or null/empty for the system default.</param>
++    /// <param name="sampleRate">Requested sample rate.</param>
++    /// <param name="bufferSamples">Size of the backend ring buffer in samples.</param>
++    /// <returns>Null if the device could not be opened (missing, in use, permission denied...).</returns>
++    IAudioCaptureDevice? OpenCaptureDevice(string? deviceName, int sampleRate, int bufferSamples);
++
++    /// <summary>
++    /// Creates a source that plays mono 16-bit PCM pushed with <see cref="IStreamingAudioSource.QueueSamples"/>.
++    /// </summary>
++    /// <param name="sampleRate">Sample rate of the samples that will be queued.</param>
++    /// <param name="maxQueuedChunks">How many chunks may be queued at once.</param>
++    /// <returns>Null if no more sources could be created.</returns>
++    IStreamingAudioSource? CreateStreamingSource(int sampleRate, int maxQueuedChunks = 16);
++}
+diff --git a/Robust.Client/Audio/Sources/StreamingAudioSource.cs b/Robust.Client/Audio/Sources/StreamingAudioSource.cs
+new file mode 100644
+index 000000000..f932bbac5
+--- /dev/null
++++ b/Robust.Client/Audio/Sources/StreamingAudioSource.cs
+@@ -0,0 +1,194 @@
++using System;
++using System.Collections.Generic;
++using OpenTK.Audio.OpenAL;
++using Robust.Shared.Audio.Sources;
++
++namespace Robust.Client.Audio.Sources;
++
++/// <summary>
++/// Plays mono 16-bit PCM chunks pushed at runtime through a pool of OpenAL buffers.
++/// </summary>
++internal sealed class StreamingAudioSource : BaseAudioSource, IStreamingAudioSource
++{
++    private readonly int[] _bufferHandles;
++    private readonly Stack<int> _freeBuffers = new();
++    private readonly Dictionary<int, int> _bufferSampleCounts = new();
++
++    // Sum of samples in all currently queued buffers.
++    private int _queuedTotal;
++
++    // Set when content explicitly stops the source, so queueing doesn't immediately restart it.
++    private bool _stopped;
++
++    public int SampleRate { get; }
++
++    public int MaxQueuedChunks => _bufferHandles.Length;
++
++    public StreamingAudioSource(AudioManager master, int sourceHandle, int[] bufferHandles, int sampleRate)
++        : base(master, sourceHandle)
++    {
++        _bufferHandles = bufferHandles;
++        SampleRate = sampleRate;
++
++        foreach (var handle in bufferHandles)
++        {
++            _freeBuffers.Push(handle);
++        }
++    }
++
++    public override bool Playing
++    {
++        get
++        {
++            _checkDisposed();
++            var state = AL.GetSource(SourceHandle, ALGetSourcei.SourceState);
++            Master._checkAlError();
++            return state == (int) ALSourceState.Playing;
++        }
++        set
++        {
++            if (value)
++            {
++                _checkDisposed();
++                _stopped = false;
++
++                if (_queuedTotal > 0)
++                    AL.SourcePlay(SourceHandle);
++            }
++            else
++            {
++                if (_isDisposed())
++                    return;
++
++                _stopped = true;
++                AL.SourceStop(SourceHandle);
++            }
++
++            Master._checkAlError();
++        }
++    }
++
++    public int QueuedSamples
++    {
++        get
++        {
++            _checkDisposed();
++            ReclaimProcessed();
++
++            if (_queuedTotal == 0)
++                return 0;
++
++            // Offset into the buffer currently playing.
++            AL.GetSource(SourceHandle, ALGetSourcei.SampleOffset, out var offset);
++            Master._checkAlError();
++            return Math.Max(0, _queuedTotal - offset);
++        }
++    }
++
++    public bool QueueSamples(ReadOnlySpan<short> samples)
++    {
++        _checkDisposed();
++
++        if (samples.Length == 0)
++            return true;
++
++        ReclaimProcessed();
++
++        if (!_freeBuffers.TryPop(out var buffer))
++            return false;
++
++        unsafe
++        {
++            fixed (short* ptr = samples)
++            {
++                AL.BufferData(buffer, ALFormat.Mono16, (IntPtr) ptr, samples.Length * sizeof(short), SampleRate);
++            }
++
++            AL.SourceQueueBuffers(SourceHandle, 1, &buffer);
++        }
++
++        Master._checkAlError();
++
++        _bufferSampleCounts[buffer] = samples.Length;
++        _queuedTotal += samples.Length;
++
++        // Restart after an underrun (OpenAL stops the source once it runs out of queued buffers).
++        if (!_stopped)
++        {
++            var state = AL.GetSource(SourceHandle, ALGetSourcei.SourceState);
++            if (state != (int) ALSourceState.Playing)
++                AL.SourcePlay(SourceHandle);
++
++            Master._checkAlError();
++        }
++
++        return true;
++    }
++
++    public void ClearQueue()
++    {
++        _checkDisposed();
++
++        // Stopping marks every queued buffer as processed so they can all be unqueued.
++        AL.SourceStop(SourceHandle);
++        ReclaimProcessed();
++        Master._checkAlError();
++    }
++
++    private unsafe void ReclaimProcessed()
++    {
++        AL.GetSource(SourceHandle, ALGetSourcei.BuffersProcessed, out var processed);
++        if (processed <= 0)
++            return;
++
++        Span<int> handles = stackalloc int[Math.Min(processed, _bufferHandles.Length)];
++        fixed (int* ptr = handles)
++        {
++            AL.SourceUnqueueBuffers(SourceHandle, handles.Length, ptr);
++        }
++
++        foreach (var handle in handles)
++        {
++            if (_bufferSampleCounts.Remove(handle, out var count))
++                _queuedTotal -= count;
++
++            _freeBuffers.Push(handle);
++        }
++    }
++
++    ~StreamingAudioSource()
++    {
++        Dispose(false);
++    }
++
++    protected override void Dispose(bool disposing)
++    {
++        if (SourceHandle == -1)
++            return;
++
++        if (!Master.IsMainThread())
++        {
++            // OpenAL calls must happen on the main thread, defer cleanup.
++            Master.DeleteBufferedSourceOnMainThread(SourceHandle, FilterHandle);
++
++            foreach (var handle in _bufferHandles)
++            {
++                Master.DeleteAudioBufferOnMainThread(handle);
++            }
++        }
++        else
++        {
++            if (FilterHandle != 0)
++                ALC.EFX.DeleteFilter(FilterHandle);
++
++            AL.SourceStop(SourceHandle);
++            AL.DeleteSource(SourceHandle);
++            AL.DeleteBuffers(_bufferHandles);
++            Master.RemoveBufferedAudioSource(SourceHandle);
++            Master._checkAlError();
++        }
++
++        FilterHandle = 0;
++        SourceHandle = -1;
++    }
++}
+diff --git a/Robust.Client/ClientIoC.cs b/Robust.Client/ClientIoC.cs
+index 1fece6465..41040580b 100644
+--- a/Robust.Client/ClientIoC.cs
++++ b/Robust.Client/ClientIoC.cs
+@@ -1,4 +1,5 @@
+ using Robust.Client.Audio;
++using Robust.Client.Audio.Realtime;
+ using Robust.Client.Audio.Midi;
+ using Robust.Client.Configuration;
+ using Robust.Client.Console;
+@@ -120,6 +121,7 @@ namespace Robust.Client
+                     deps.Register<IClydeInternal, ClydeHeadless>();
+                     deps.Register<IAudioManager, HeadlessAudioManager>();
+                     deps.Register<IAudioInternal, HeadlessAudioManager>();
++                    deps.Register<IRealtimeAudioManager, HeadlessAudioManager>();
+                     deps.Register<IInputManager, InputManager>();
+                     deps.Register<IUriOpener, UriOpenerDummy>();
+                     deps.Register<ISystemFontManager, SystemFontManagerFallback>();
+@@ -131,6 +133,7 @@ namespace Robust.Client
+                     deps.Register<IClydeInternal, Clyde>();
+                     deps.Register<IAudioManager, AudioManager>();
+                     deps.Register<IAudioInternal, AudioManager>();
++                    deps.Register<IRealtimeAudioManager, AudioManager>();
+                     deps.Register<IInputManager, ClydeInputManager>();
+                     deps.Register<IUriOpener, UriOpener>();
+                     deps.Register<ISystemFontManager, SystemFontManager>();
+diff --git a/Robust.Shared.Tests/Audio/OpusVoiceCodecTest.cs b/Robust.Shared.Tests/Audio/OpusVoiceCodecTest.cs
+new file mode 100644
+index 000000000..433c016da
+--- /dev/null
++++ b/Robust.Shared.Tests/Audio/OpusVoiceCodecTest.cs
+@@ -0,0 +1,90 @@
++using System;
++using NUnit.Framework;
++using Robust.Shared.Audio.Codecs;
++
++namespace Robust.Shared.Tests.Audio;
++
++[TestFixture, Parallelizable, TestOf(typeof(OpusVoiceEncoder))]
++internal sealed class OpusVoiceCodecTest
++{
++    private const int Rate = 48000;
++    private const int Frame = 960; // 20 ms
++
++    private static short[] Sine(int length, float freq, int offset = 0)
++    {
++        var data = new short[length];
++        for (var i = 0; i < length; i++)
++        {
++            data[i] = (short) (MathF.Sin(2 * MathF.PI * freq * (i + offset) / Rate) * 8000);
++        }
++
++        return data;
++    }
++
++    [Test]
++    public void RoundTrip()
++    {
++        var enc = new OpusVoiceEncoder(Rate) { Bitrate = 32000, UseInbandFec = true };
++        var dec = new OpusVoiceDecoder(Rate);
++        var packet = new byte[1275];
++        var output = new short[Frame];
++
++        double energy = 0;
++        for (var f = 0; f < 10; f++)
++        {
++            var len = enc.Encode(Sine(Frame, 440, f * Frame), packet);
++            Assert.That(len, Is.GreaterThan(0));
++            Assert.That(OpusPacket.GetSampleCount(packet.AsSpan(0, len), Rate), Is.EqualTo(Frame));
++
++            var decoded = dec.Decode(packet.AsSpan(0, len), output);
++            Assert.That(decoded, Is.EqualTo(Frame));
++
++            if (f > 3)
++            {
++                foreach (var s in output)
++                {
++                    energy += s * (double) s;
++                }
++            }
++        }
++
++        // Codec warmed up and is producing a signal of roughly the right amplitude.
++        var rms = Math.Sqrt(energy / (6 * Frame));
++        Assert.That(rms, Is.InRange(3000, 9000));
++
++        Assert.That(dec.DecodeLost(output), Is.EqualTo(Frame));
++    }
++
++    [Test]
++    public void RejectsGarbage()
++    {
++        var dec = new OpusVoiceDecoder(Rate);
++        var output = new short[Frame];
++
++        Assert.That(dec.Decode(ReadOnlySpan<byte>.Empty, output), Is.EqualTo(-1));
++
++        // Code 3 packet claiming 63 frames of 20 ms: way over the 120 ms limit.
++        Assert.That(OpusPacket.GetSampleCount(new byte[] { 0xFB, 0x3F, 0, 0 }, Rate), Is.EqualTo(-1));
++        Assert.That(dec.Decode(new byte[] { 0xFB, 0x3F, 0, 0 }, output), Is.EqualTo(-1));
++
++        // Random bytes must never throw.
++        var rng = new System.Random(1234);
++        var junk = new byte[200];
++        for (var i = 0; i < 500; i++)
++        {
++            rng.NextBytes(junk);
++            Assert.DoesNotThrow(() => dec.Decode(junk.AsSpan(0, rng.Next(1, junk.Length)), output));
++        }
++    }
++
++    [Test]
++    [TestCase((byte) 0x08, 960)]  // SILK 20 ms, 1 frame
++    [TestCase((byte) 0x78, 960)]  // Hybrid 20 ms (config 15)
++    [TestCase((byte) 0xF8, 960)]  // CELT 20 ms (config 31)
++    [TestCase((byte) 0xF9, 1920)] // CELT 20 ms, 2 frames
++    [TestCase((byte) 0x18, 2880)] // SILK 60 ms
++    public void PacketDuration(byte toc, int samples)
++    {
++        Assert.That(OpusPacket.GetSampleCount(new[] { toc, (byte) 0 }, Rate), Is.EqualTo(samples));
++    }
++}
+diff --git a/Robust.Shared/Audio/Codecs/OpusPacket.cs b/Robust.Shared/Audio/Codecs/OpusPacket.cs
+new file mode 100644
+index 000000000..fcbc5480e
+--- /dev/null
++++ b/Robust.Shared/Audio/Codecs/OpusPacket.cs
+@@ -0,0 +1,85 @@
++using System;
++
++namespace Robust.Shared.Audio.Codecs;
++
++/// <summary>
++/// Cheap structural inspection of Opus packets (RFC 6716 section 3) without decoding them.
++/// Lets a server sanity-check relayed packets without running a decoder.
++/// </summary>
++public static class OpusPacket
++{
++    /// <summary>
++    /// Longest duration a single Opus packet may encode, in milliseconds.
++    /// </summary>
++    public const int MaxPacketDurationMs = 120;
++
++    /// <summary>
++    /// Returns the number of samples per channel the packet decodes to at <paramref name="sampleRate"/>,
++    /// or -1 if the packet is structurally invalid.
++    /// </summary>
++    public static int GetSampleCount(ReadOnlySpan<byte> packet, int sampleRate)
++    {
++        if (packet.Length < 1 || sampleRate <= 0)
++            return -1;
++
++        var toc = packet[0];
++        int frames;
++
++        switch (toc & 0x3)
++        {
++            case 0:
++                frames = 1;
++                break;
++            case 1:
++            case 2:
++                frames = 2;
++                break;
++            default:
++                if (packet.Length < 2)
++                    return -1;
++
++                frames = packet[1] & 0x3F;
++                if (frames == 0)
++                    return -1;
++                break;
++        }
++
++        // Frame duration in units of 1/400 s (2.5 ms).
++        var frameUnits = GetFrameDurationUnits(toc);
++        var totalUnits = frames * frameUnits;
++
++        if (totalUnits * 25 > MaxPacketDurationMs * 10)
++            return -1;
++
++        return totalUnits * sampleRate / 400;
++    }
++
++    /// <summary>
++    /// Frame duration encoded in the TOC byte, in units of 2.5 ms.
++    /// </summary>
++    private static int GetFrameDurationUnits(byte toc)
++    {
++        var config = toc >> 3;
++
++        if (config < 12)
++        {
++            // SILK-only: 10, 20, 40, 60 ms
++            return (config & 0x3) switch
++            {
++                0 => 4,
++                1 => 8,
++                2 => 16,
++                _ => 24,
++            };
++        }
++
++        if (config < 16)
++        {
++            // Hybrid: 10, 20 ms
++            return (config & 0x1) == 0 ? 4 : 8;
++        }
++
++        // CELT-only: 2.5, 5, 10, 20 ms
++        return 1 << (config & 0x3);
++    }
++}
+diff --git a/Robust.Shared/Audio/Codecs/OpusVoiceDecoder.cs b/Robust.Shared/Audio/Codecs/OpusVoiceDecoder.cs
+new file mode 100644
+index 000000000..4d990cfdb
+--- /dev/null
++++ b/Robust.Shared/Audio/Codecs/OpusVoiceDecoder.cs
+@@ -0,0 +1,72 @@
++using System;
++using Concentus;
++
++namespace Robust.Shared.Audio.Codecs;
++
++/// <summary>
++/// Mono Opus decoder with packet loss concealment. Not thread safe.
++/// </summary>
++public sealed class OpusVoiceDecoder
++{
++    private readonly IOpusDecoder _decoder;
++
++    public int SampleRate { get; }
++
++    /// <param name="sampleRate">One of 8000, 12000, 16000, 24000 or 48000.</param>
++    public OpusVoiceDecoder(int sampleRate)
++    {
++        SampleRate = sampleRate;
++        _decoder = OpusCodecFactory.CreateDecoder(sampleRate, 1);
++    }
++
++    /// <summary>
++    /// Decodes a packet into <paramref name="output"/>.
++    /// </summary>
++    /// <param name="packet">The packet. Malformed packets are rejected rather than throwing.</param>
++    /// <param name="output">Destination. Its length is the maximum frame size accepted.</param>
++    /// <param name="decodeFec">
++    /// Decode the forward error correction data embedded in <paramref name="packet"/>, which reconstructs the frame
++    /// <i>before</i> it. Use when that previous packet was lost; <paramref name="output"/> must then be exactly one
++    /// frame long.
++    /// </param>
++    /// <returns>Samples decoded, or -1 if the packet was invalid.</returns>
++    public int Decode(ReadOnlySpan<byte> packet, Span<short> output, bool decodeFec = false)
++    {
++        if (packet.Length == 0)
++            return -1;
++
++        if (OpusPacket.GetSampleCount(packet, SampleRate) is var count && (count < 0 || count > output.Length))
++            return -1;
++
++        try
++        {
++            return _decoder.Decode(packet, output, output.Length, decodeFec);
++        }
++        catch (Exception)
++        {
++            return -1;
++        }
++    }
++
++    /// <summary>
++    /// Synthesizes a concealment frame for a packet that never arrived.
++    /// </summary>
++    /// <param name="output">Destination, must be exactly the length of the missing frame.</param>
++    /// <returns>Samples generated, or -1 on failure.</returns>
++    public int DecodeLost(Span<short> output)
++    {
++        try
++        {
++            return _decoder.Decode(ReadOnlySpan<byte>.Empty, output, output.Length, false);
++        }
++        catch (Exception)
++        {
++            return -1;
++        }
++    }
++
++    public void Reset()
++    {
++        _decoder.ResetState();
++    }
++}
+diff --git a/Robust.Shared/Audio/Codecs/OpusVoiceEncoder.cs b/Robust.Shared/Audio/Codecs/OpusVoiceEncoder.cs
+new file mode 100644
+index 000000000..ae6a7af36
+--- /dev/null
++++ b/Robust.Shared/Audio/Codecs/OpusVoiceEncoder.cs
+@@ -0,0 +1,90 @@
++using System;
++using Concentus;
++using Concentus.Enums;
++
++namespace Robust.Shared.Audio.Codecs;
++
++/// <summary>
++/// Mono Opus encoder tuned for voice. Not thread safe.
++/// </summary>
++public sealed class OpusVoiceEncoder
++{
++    private readonly IOpusEncoder _encoder;
++
++    public int SampleRate { get; }
++
++    /// <param name="sampleRate">One of 8000, 12000, 16000, 24000 or 48000.</param>
++    public OpusVoiceEncoder(int sampleRate)
++    {
++        SampleRate = sampleRate;
++        _encoder = OpusCodecFactory.CreateEncoder(sampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
++        _encoder.SignalType = OpusSignal.OPUS_SIGNAL_VOICE;
++        _encoder.UseVBR = true;
++    }
++
++    /// <summary>
++    /// Target bitrate in bits per second.
++    /// </summary>
++    public int Bitrate
++    {
++        get => _encoder.Bitrate;
++        set => _encoder.Bitrate = Math.Clamp(value, 6000, 128000);
++    }
++
++    /// <summary>
++    /// Encoder complexity, 0 (fastest) to 10 (best quality).
++    /// </summary>
++    public int Complexity
++    {
++        get => _encoder.Complexity;
++        set => _encoder.Complexity = Math.Clamp(value, 0, 10);
++    }
++
++    /// <summary>
++    /// Embeds redundant data for the previous frame so receivers can recover single lost packets.
++    /// </summary>
++    public bool UseInbandFec
++    {
++        get => _encoder.UseInbandFEC;
++        set => _encoder.UseInbandFEC = value;
++    }
++
++    /// <summary>
++    /// Expected packet loss in percent; higher values make FEC more aggressive.
++    /// </summary>
++    public int ExpectedPacketLossPercent
++    {
++        get => _encoder.PacketLossPercent;
++        set => _encoder.PacketLossPercent = Math.Clamp(value, 0, 100);
++    }
++
++    /// <summary>
++    /// Discontinuous transmission: emit tiny packets during silence.
++    /// </summary>
++    public bool UseDtx
++    {
++        get => _encoder.UseDTX;
++        set => _encoder.UseDTX = value;
++    }
++
++    /// <summary>
++    /// Encodes one frame. <paramref name="pcm"/> must be exactly 2.5, 5, 10, 20, 40 or 60 ms long.
++    /// </summary>
++    /// <returns>Number of bytes written to <paramref name="output"/>, or -1 on failure.</returns>
++    public int Encode(ReadOnlySpan<short> pcm, Span<byte> output)
++    {
++        try
++        {
++            return _encoder.Encode(pcm, pcm.Length, output, output.Length);
++        }
++        catch (Exception)
++        {
++            return -1;
++        }
++    }
++
++    public void Reset()
++    {
++        _encoder.ResetState();
++    }
++}
+diff --git a/Robust.Shared/Audio/Sources/IStreamingAudioSource.cs b/Robust.Shared/Audio/Sources/IStreamingAudioSource.cs
+new file mode 100644
+index 000000000..333ebf185
+--- /dev/null
++++ b/Robust.Shared/Audio/Sources/IStreamingAudioSource.cs
+@@ -0,0 +1,43 @@
++using System;
++using Robust.Shared.Analyzers;
++
++namespace Robust.Shared.Audio.Sources;
++
++/// <summary>
++/// An audio source that plays PCM samples pushed to it at runtime, e.g. decoded voice or synthesized audio.
++/// </summary>
++/// <remarks>
++/// Samples are mono, signed 16-bit, at <see cref="SampleRate"/>.
++/// If the source runs out of queued samples it stops (an underrun); queueing more samples restarts it automatically
++/// unless <see cref="IAudioSource.StopPlaying"/> was called explicitly.
++/// Must only be used from the main thread.
++/// </remarks>
++[NotContentImplementable]
++public interface IStreamingAudioSource : IAudioSource
++{
++    /// <summary>
++    /// Sample rate of the samples queued into this source.
++    /// </summary>
++    int SampleRate { get; }
++
++    /// <summary>
++    /// Approximate number of samples queued and not yet played.
++    /// </summary>
++    int QueuedSamples { get; }
++
++    /// <summary>
++    /// Maximum number of chunks that can be queued at once. <see cref="QueueSamples"/> fails when this is exceeded.
++    /// </summary>
++    int MaxQueuedChunks { get; }
++
++    /// <summary>
++    /// Queues a chunk of mono 16-bit samples for playback.
++    /// </summary>
++    /// <returns>False if the chunk could not be queued because too many chunks are already queued.</returns>
++    bool QueueSamples(ReadOnlySpan<short> samples);
++
++    /// <summary>
++    /// Drops every queued sample and stops playback.
++    /// </summary>
++    void ClearQueue();
++}
+diff --git a/Robust.Shared/Robust.Shared.csproj b/Robust.Shared/Robust.Shared.csproj
+index 8750448cb..ad062d635 100644
+--- a/Robust.Shared/Robust.Shared.csproj
++++ b/Robust.Shared/Robust.Shared.csproj
+@@ -12,6 +12,7 @@
+     <PackageReference Include="Microsoft.ILVerification" PrivateAssets="compile" />
+     <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" />
+     <PackageReference Include="Nett" PrivateAssets="compile" />
++    <PackageReference Include="Concentus" PrivateAssets="compile" />
+     <PackageReference Include="System.Management" />
+     <PackageReference Include="System.Numerics.Tensors" />
+     <PackageReference Include="VorbisPizza" PrivateAssets="compile" />
+-- 
+2.43.0
+
