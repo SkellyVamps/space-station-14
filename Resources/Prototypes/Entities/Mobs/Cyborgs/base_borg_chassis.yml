@@ -234,6 +234,8 @@
   parent: BaseBorgChassisNotIonStormable
   id: BaseBorgChassis
   components:
+  - type: VoiceModifier
+    filters: [ SyntheticVoiceBox ]
   - type: IonStormTarget
   - type: Destructible
     generateOverkillThreshold: false

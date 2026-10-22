@@ -82,6 +82,8 @@
   id: MobSlimePerson
   name: Urist McWobble
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesSlime ]
   - type: Storage
     clickInsert: false
     grid:

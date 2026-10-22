@@ -4,6 +4,8 @@
   name: blast door
   description: Blast-retardant AND fire-retardant!
   components:
+  - type: VoiceAcousticBarrier
+    blocks: true
   - type: AccessReader
     containerAccessProvider: board
   - type: Sprite

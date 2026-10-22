@@ -118,6 +118,10 @@
   id: MobReptilian
   name: Urist McScales
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesReptilian ]
+    profile:
+      formant: -0.5
   - type: Puller
     needsHands: false
   - type: Butcherable

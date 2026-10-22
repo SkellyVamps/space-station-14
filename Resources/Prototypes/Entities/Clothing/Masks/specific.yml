@@ -25,6 +25,9 @@
   id: ClothingMaskGasVoiceChameleon
   suffix: Voice Mask, Chameleon
   components:
+    - type: VoiceDisguise
+      filters: [ DisguiseSheen ]
+    - type: VoiceImpersonator
     - type: VoiceMask
     - type: UIRequiresLock
       userInterfaceKeys:

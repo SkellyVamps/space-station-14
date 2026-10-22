@@ -4,6 +4,10 @@
   id: BaseMech
   save: false
   components:
+  - type: VoiceContainerAcoustics
+    penalty: 0.5
+    muffle: 0.35
+    onlyWhenClosed: false
   - type: MobMover
   - type: Mech
   - type: MechAir

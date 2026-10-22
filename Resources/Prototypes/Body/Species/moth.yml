@@ -140,6 +140,8 @@
   id: MobMoth
   name: Urist McFluff
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesMoth ]
   - type: Damageable
     damageModifierSet: Moth
   - type: ZombieAccentOverride

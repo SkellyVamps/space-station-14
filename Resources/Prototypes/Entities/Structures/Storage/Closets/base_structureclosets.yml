@@ -5,6 +5,9 @@
   name: closet
   description: A standard-issue Nanotrasen storage unit.
   components:
+  - type: VoiceContainerAcoustics
+    penalty: 1.5
+    muffle: 0.6
   - type: Animateable
   - type: ResistLocker
   - type: Transform
@@ -115,6 +118,9 @@
   name: wall closet
   description: A standard-issue Nanotrasen storage unit, now on walls.
   components:
+  - type: VoiceContainerAcoustics
+    penalty: 1.5
+    muffle: 0.6
   - type: ResistLocker
   - type: Weldable
   - type: StaticPrice

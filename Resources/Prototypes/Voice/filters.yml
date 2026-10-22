@@ -1,0 +1,300 @@
+# Voice filter prototypes: reusable effect chains for voice chat.
+# See docs/voice/developer.md for every effect type and its parameters.
+# Keep everything intelligible: these are colouring, not obfuscation (except disguises, and even those stay clear).
+#
+# "order" sorts stacked filters: innate/species (0-20) run before things in front of the mouth (masks 40-60,
+# helmets 60-80). Receive-side filters (radio, ghost) don't stack with speaker filters.
+
+## Receive side
+
+- type: voiceFilter
+  id: RadioDefault
+  effects:
+  - !type:FilterVoiceEffect
+    type: HighPass
+    frequency: 320
+    stages: 2
+  - !type:FilterVoiceEffect
+    type: LowPass
+    frequency: 3400
+    stages: 2
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 1800
+    q: 1
+    gainDb: 4
+  - !type:CompressorVoiceEffect
+    thresholdDb: -26
+    ratio: 5
+    attackMs: 3
+    releaseMs: 90
+    makeupDb: 8
+  - !type:DistortionVoiceEffect
+    drive: 2.5
+    mix: 0.3
+  - !type:NoiseVoiceEffect
+    level: 0.006
+    lowCut: 900
+    highCut: 5000
+  - !type:CrackleVoiceEffect
+    rate: 1.5
+    level: 0.05
+
+- type: voiceFilter
+  id: GhostVoice
+  effects:
+  - !type:FilterVoiceEffect
+    type: HighShelf
+    frequency: 3000
+    gainDb: 3
+  - !type:ModulationVoiceEffect
+    delayMs: 12
+    depthMs: 4
+    rate: 0.4
+    mix: 0.5
+  - !type:EchoVoiceEffect
+    delayMs: 170
+    feedback: 0.35
+    mix: 0.35
+
+## Species
+
+- type: voiceFilter
+  id: SpeciesReptilian
+  order: 5
+  effects:
+  # A faint sibilant hiss riding on the voice.
+  - !type:NoiseVoiceEffect
+    level: 0.035
+    followSignal: true
+    lowCut: 4500
+    highCut: 10000
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 6500
+    q: 1.2
+    gainDb: 2
+
+- type: voiceFilter
+  id: SpeciesMoth
+  order: 5
+  effects:
+  # Soft, slightly fluttery.
+  - !type:TremoloVoiceEffect
+    rate: 22
+    depth: 0.08
+    jitter: 0.3
+  - !type:NoiseVoiceEffect
+    level: 0.02
+    followSignal: true
+    lowCut: 2500
+    highCut: 8000
+
+- type: voiceFilter
+  id: SpeciesDiona
+  order: 5
+  effects:
+  # Woody, hollow resonance.
+  - !type:CombVoiceEffect
+    delayMs: 4.5
+    feedback: 0.35
+    mix: 0.3
+  - !type:FilterVoiceEffect
+    type: LowShelf
+    frequency: 250
+    gainDb: 3
+
+- type: voiceFilter
+  id: SpeciesArachnid
+  order: 5
+  effects:
+  # Slightly clicky, chittering edge.
+  - !type:CrackleVoiceEffect
+    rate: 6
+    level: 0.05
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 3000
+    q: 2
+    gainDb: 3
+
+- type: voiceFilter
+  id: SpeciesSlime
+  order: 5
+  effects:
+  # Wobbly, wet.
+  - !type:ModulationVoiceEffect
+    delayMs: 6
+    depthMs: 1.5
+    rate: 3.5
+    mix: 0.45
+
+- type: voiceFilter
+  id: SpeciesVox
+  order: 5
+  effects:
+  - !type:FilterVoiceEffect
+    type: HighPass
+    frequency: 250
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 2400
+    q: 1.5
+    gainDb: 4
+  - !type:DistortionVoiceEffect
+    drive: 2
+    mix: 0.2
+
+- type: voiceFilter
+  id: SpeciesSkeleton
+  order: 5
+  effects:
+  - !type:CombVoiceEffect
+    delayMs: 2.2
+    feedback: 0.45
+    mix: 0.35
+  - !type:FilterVoiceEffect
+    type: HighPass
+    frequency: 200
+
+## Synthetic
+
+- type: voiceFilter
+  id: SyntheticVoiceBox
+  order: 10
+  effects:
+  - !type:FilterVoiceEffect
+    type: HighPass
+    frequency: 180
+  - !type:BitCrushVoiceEffect
+    bits: 10
+    downsample: 2
+    mix: 0.4
+  - !type:RingModulatorVoiceEffect
+    frequency: 55
+    mix: 0.2
+  - !type:CombVoiceEffect
+    delayMs: 1.1
+    feedback: 0.3
+    mix: 0.3
+  - !type:CompressorVoiceEffect
+    thresholdDb: -24
+    ratio: 4
+    makeupDb: 5
+
+- type: voiceFilter
+  id: RobotVocoder
+  order: 10
+  effects:
+  - !type:VocoderVoiceEffect
+    bands: 18
+    carrierFrequency: 110
+    mix: 0.85
+    noise: 0.15
+
+## Equipment
+
+- type: voiceFilter
+  id: GasMask
+  order: 50
+  effects:
+  # Muffled, boxy, reduced highs.
+  - !type:FilterVoiceEffect
+    type: LowPass
+    frequency: 3200
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 700
+    q: 1.2
+    gainDb: 3
+  - !type:CombVoiceEffect
+    delayMs: 1.2
+    feedback: 0.2
+    mix: 0.25
+  - !type:NoiseVoiceEffect
+    # Breathing through the filter.
+    level: 0.02
+    followSignal: true
+    lowCut: 1500
+    highCut: 5000
+
+- type: voiceFilter
+  id: BreathMask
+  order: 45
+  effects:
+  - !type:FilterVoiceEffect
+    type: LowPass
+    frequency: 5000
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 900
+    q: 1
+    gainDb: 2
+
+- type: voiceFilter
+  id: Muzzle
+  order: 55
+  effects:
+  - !type:FilterVoiceEffect
+    type: LowPass
+    frequency: 900
+    stages: 2
+  - !type:GainVoiceEffect
+    db: -6
+
+- type: voiceFilter
+  id: SealedHelmet
+  order: 60
+  effects:
+  # Talking inside a closed helmet: resonant and dull.
+  - !type:FilterVoiceEffect
+    type: LowPass
+    frequency: 2800
+  - !type:CombVoiceEffect
+    delayMs: 2.6
+    feedback: 0.35
+    mix: 0.35
+  - !type:EchoVoiceEffect
+    delayMs: 11
+    feedback: 0.2
+    mix: 0.15
+
+- type: voiceFilter
+  id: HelmetSpeaker
+  order: 70
+  effects:
+  # External speaker on powered helmets: band limited, compressed, a touch of grit.
+  - !type:FilterVoiceEffect
+    type: HighPass
+    frequency: 260
+  - !type:FilterVoiceEffect
+    type: Peaking
+    frequency: 2000
+    q: 1
+    gainDb: 5
+  - !type:CompressorVoiceEffect
+    thresholdDb: -28
+    ratio: 6
+    makeupDb: 9
+  - !type:DistortionVoiceEffect
+    drive: 2
+    mix: 0.2
+  - !type:NoiseVoiceEffect
+    level: 0.003
+    lowCut: 1000
+    highCut: 6000
+
+- type: voiceFilter
+  id: DisguiseSheen
+  order: 80
+  effects:
+  # Subtle synthetic shimmer that blurs recognisable timbre.
+  - !type:ModulationVoiceEffect
+    delayMs: 7
+    depthMs: 1.5
+    rate: 1.3
+    mix: 0.35
+  - !type:BitCrushVoiceEffect
+    bits: 12
+    downsample: 1
+    mix: 0.2

@@ -123,6 +123,10 @@
   id: MobDwarf
   name: Urist McHands the Dwarf
   components:
+  - type: VoiceModifier
+    profile:
+      formant: -1
+      roughness: 0.1
   - type: Fixtures
     fixtures: # TODO: This needs a second fixture just for mob collisions.
       fix1:

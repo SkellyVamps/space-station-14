@@ -75,6 +75,8 @@
   id: MobSkeletonPerson
   name: Urist McBones
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesSkeleton ]
   - type: Damageable
     damageModifierSet: Skeleton
   - type: Injurable

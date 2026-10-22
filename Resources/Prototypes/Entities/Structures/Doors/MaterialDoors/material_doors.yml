@@ -5,6 +5,9 @@
   name: door
   description: A door, where will it lead?
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 2.5
+    muffle: 0.65
   - type: Anchorable
     flags:
     - Anchorable

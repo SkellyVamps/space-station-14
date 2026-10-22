@@ -72,6 +72,11 @@
   id: MobDiona
   name: Urist McPlants
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesDiona ]
+    profile:
+      formant: -1
+      brightness: -0.3
   - type: Respirator
     damage:
       types:

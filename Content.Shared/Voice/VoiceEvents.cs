@@ -26,13 +26,18 @@ public sealed class VoiceModifiersEvent : EntityEventArgs, IInventoryRelayEvent
     public int OverridePriority = int.MinValue;
 
     /// <summary>
-    /// Filters to append to the original (non-overridden) speaker's filters, e.g. species-specific ones.
-    /// Cleared when an impersonation override provides its own.
+    /// Filters from the speaker's own body (species, implants, status effects). Replaced by
+    /// <see cref="FilterOverride"/> when impersonating someone else.
+    /// </summary>
+    public List<ProtoId<VoiceFilterPrototype>> InnateFilters = new();
+
+    /// <summary>
+    /// Filters from things in front of the mouth: masks, helmets, voice boxes. Always applied.
     /// </summary>
     public List<ProtoId<VoiceFilterPrototype>> Filters = new();
 
     /// <summary>
-    /// When an override wants to also replace innate (species) filters, it sets this.
+    /// Set by an override that also replaces innate filters (impersonating another species' voice).
     /// </summary>
     public List<ProtoId<VoiceFilterPrototype>>? FilterOverride;
 

@@ -182,7 +182,8 @@ public sealed class SpectralShifter : IVoiceProcessor
 
         _fft.Transform(_re, _im, true);
 
-        const float scale = 2f / (Half * Oversample);
+        // Analysis and synthesis are both Hann windowed; Hann squared at 4x overlap sums to 1.5.
+        const float scale = 2f / (Half * Oversample * 1.5f);
         for (var k = 0; k < FrameSize; k++)
         {
             _outAccum[k] += scale * _window[k] * _re[k];

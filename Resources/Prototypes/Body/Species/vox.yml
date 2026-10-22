@@ -163,6 +163,10 @@
   id: MobVox
   name: Urist McVox
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesVox ]
+    profile:
+      formant: 1.5
   - type: Damageable
     damageModifierSet: Vox
   - type: Speech

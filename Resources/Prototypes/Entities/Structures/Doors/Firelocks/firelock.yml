@@ -5,6 +5,9 @@
   name: firelock
   description: Apply crowbar.
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 3
+    muffle: 0.75
   - type: Anchorable
     flags:
     - Anchorable

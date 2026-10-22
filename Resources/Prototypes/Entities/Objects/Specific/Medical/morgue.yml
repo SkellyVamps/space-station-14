@@ -4,6 +4,9 @@
   name: body bag
   description: A plastic bag designed for the storage and transportation of cadavers to stop body decomposition.
   components:
+  - type: VoiceContainerAcoustics
+    penalty: 1
+    muffle: 0.5
   - type: Item
     size: Small
     heldPrefix: bag

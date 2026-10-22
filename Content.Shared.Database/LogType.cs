@@ -488,4 +488,9 @@ public enum LogType
     /// Silicon law changes.
     /// </summary>
     SiliconLaw = 105,
+
+    /// <summary>
+    /// Voice chat moderation and abuse (never voice content).
+    /// </summary>
+    Voice = 106,
 }

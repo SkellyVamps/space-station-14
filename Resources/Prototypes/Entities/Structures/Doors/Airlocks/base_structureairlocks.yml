@@ -9,6 +9,9 @@
   placement:
     mode: SnapgridCenter
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 3
+    muffle: 0.7
   - type: Anchorable
     flags:
     - Anchorable
@@ -236,6 +239,9 @@
   id: AirlockGlass
   name: glass airlock
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 2
+    muffle: 0.55
   - type: MeleeSound
     soundGroups:
       Brute:

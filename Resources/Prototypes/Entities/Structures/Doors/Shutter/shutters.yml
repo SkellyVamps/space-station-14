@@ -7,6 +7,9 @@
   placement:
     mode: SnapgridCenter
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 4
+    muffle: 0.8
   - type: Anchorable
     flags:
     - Anchorable

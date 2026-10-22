@@ -8,6 +8,10 @@
     snap:
     - Disposal
   components:
+  - type: VoiceContainerAcoustics
+    penalty: 2
+    muffle: 0.75
+    onlyWhenClosed: false
   - type: DisposalUnit
     container:
       occludes: true

@@ -115,6 +115,8 @@
   id: ClothingHeadEVAHelmetBase
   name: base space helmet
   components:
+  - type: VoiceModifier
+    filters: [ SealedHelmet ]
 # SlotBlocker blocked until UI change
 #  - type: SlotBlock
 #    slots: [ears, eyes, mask]
@@ -151,6 +153,8 @@
   name: base hardsuit helmet
   categories: [ HideSpawnMenu ]
   components:
+  - type: VoiceModifier
+    filters: [ SealedHelmet, HelmetSpeaker ]
 # SlotBlocker blocked until UI change
 #  - type: SlotBlock
 #    slots: [ears, eyes, mask]

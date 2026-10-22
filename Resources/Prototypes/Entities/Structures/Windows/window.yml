@@ -9,6 +9,9 @@
     snap:
     - Window
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 2.5
+    muffle: 0.6
   - type: Anchorable
     flags:
     - Anchorable
@@ -148,6 +151,9 @@
     snap:
     - Window
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 1.5
+    muffle: 0.45
   - type: WallMount
     arc: 360 # interact despite grilles
   - type: Tag

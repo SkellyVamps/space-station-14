@@ -3,6 +3,9 @@
   id: ReinforcedWindow
   name: reinforced window
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 3.5
+    muffle: 0.7
   - type: Sprite
     sprite: Structures/Windows/window-base-reinf.rsi
   - type: Icon
@@ -52,6 +55,9 @@
   id: WindowReinforcedDirectional
   name: directional reinforced window
   components:
+  - type: VoiceAcousticBarrier
+    penalty: 2
+    muffle: 0.55
   - type: Sprite
     sprite: Structures/Windows/directional.rsi
     state: reinforced_window

@@ -4,6 +4,8 @@
   name: gas mask
   description: A face-covering mask that can be connected to an air supply.
   components:
+  - type: VoiceModifier
+    filters: [ GasMask ]
   - type: Sprite
     sprite: Clothing/Mask/gas.rsi
   - type: Clothing
@@ -168,6 +170,8 @@
   name: breath mask
   description: Might as well keep this on 24/7.
   components:
+  - type: VoiceModifier
+    filters: [ BreathMask ]
   - type: Item
     size: Tiny
   - type: Sprite
@@ -321,6 +325,8 @@
   name: muzzle
   description: To stop that awful noise.
   components:
+  - type: VoiceModifier
+    filters: [ Muzzle ]
   - type: Item
     size: Tiny
   - type: Sprite
