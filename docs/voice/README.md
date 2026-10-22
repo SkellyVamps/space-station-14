@@ -12,29 +12,24 @@ impersonation, per-player muting, admin moderation.
 | [developer.md](developer.md) | Developers: architecture, packet flow, DSP, acoustics, extending it |
 | [THIRD-PARTY.md](THIRD-PARTY.md) | Third-party libraries and licences |
 
-## Read this first: the engine dependency
+## Read this first: distribution
 
-Voice chat needs three small engine primitives that upstream RobustToolbox does not have yet:
-microphone capture, a streaming audio source, and an Opus codec. Content code is sandboxed and cannot reach
-OpenAL or native libraries itself, so these must live in the engine
-([`Tools/voice/engine-patches/`](../../Tools/voice/engine-patches)).
+Voice chat needs three engine primitives upstream RobustToolbox doesn't have (microphone capture, streaming audio, Opus),
+so this fork runs on its own engine fork, [SkellyVamps/RobustToolbox](https://github.com/SkellyVamps/RobustToolbox)
+(`voice-chat-engine` branch, versions like `293.0.1.1`), and players use the fork launcher
+[SkellyVamps/SS14.Launcher](https://github.com/SkellyVamps/SS14.Launcher) (`voice-chat` branch), which downloads those
+engine builds automatically and still plays every official server.
 
-The official SS14 launcher downloads the **content** (all of `Content.*`, including every voice system here) from your
-server automatically, but it downloads the **engine** by version number from the official Space Wizards build
-servers. A server cannot ship its own engine through the official launcher. Consequences:
+Players install that launcher once; after that, joining the server downloads everything else automatically.
+Players using the official launcher can't join a voice server (it doesn't know the fork engine version).
 
-* Everything works today in development (`runclient`/`runserver` with the patched submodule) and in the test suite.
-* **Do not deploy this branch to a public server yet.** Clients connecting through the official launcher would run
-  the official engine, which lacks the new engine types, and the client would fail to load the content.
-* To make it work through the normal launcher with zero manual installs, the engine patch has to ship in an official
-  RobustToolbox release. It was written to be upstreamable for that reason: it is additive, self-contained, and
-  generic (nothing voice-chat specific). See [server-owners.md](server-owners.md#client-distribution) for the
-  options and exact steps.
+One-time setup and the release procedure are in [server-owners.md](server-owners.md#client-distribution).
 
 ## Status
 
 Implemented and tested:
 
+- [x] Engine fork with signed build publishing; launcher fork that trusts it alongside official builds
 - [x] Engine: microphone capture with device enumeration and disconnect detection; streaming PCM audio sources;
       Opus encoder/decoder (Concentus, managed) with packet inspection
 - [x] Push to talk (local + radio keys, rebindable), voice activation with threshold/hold, noise gate
@@ -60,7 +55,7 @@ Implemented and tested:
 
 Not yet done / known limitations:
 
-- [ ] **Engine patch must be upstreamed** before players can use it through the official launcher (see above).
+- [ ] One-time release setup (signing key, first engine and launcher releases) needs doing; see server-owners.md.
 - [ ] Intercoms and handheld radio speakers don't play voice positionally yet (headsets and intrinsic radios do).
 - [ ] Voice between grids only crosses short gaps (docking airlocks); no full multi-grid acoustic graph.
 - [ ] Personal mutes are kept in server memory (survive reconnects, not restarts) and admin voice mutes are not yet

@@ -64,7 +64,8 @@ The server never decodes or re-encodes audio.
 
 ## Engine modifications
 
-All additive, in new files where possible (`Tools/voice/engine-patches/`):
+All additive, in new files where possible, on the `voice-chat-engine` branch of
+[SkellyVamps/RobustToolbox](https://github.com/SkellyVamps/RobustToolbox) (this repo's `RobustToolbox` submodule):
 
 * `Robust.Client/Audio/Realtime/IRealtimeAudioManager.cs` (+ `AudioManager.Realtime.cs`, headless stub, IoC
   registration): `GetCaptureDevices`, `OpenCaptureDevice`, `CreateStreamingSource`.
@@ -75,7 +76,8 @@ All additive, in new files where possible (`Tools/voice/engine-patches/`):
   directly.
 * Engine tests: `Robust.Shared.Tests/Audio/OpusVoiceCodecTest.cs`.
 
-Apply with `Tools/voice/apply-engine-patches.sh` after `git submodule update`.
+Fork-only engine changes besides voice: the 4-part version (`293.0.1.1`), `build.engine_version` keeping the 4th
+component, and `publish-fork-build.yml` / `Tools/sign_engine_build.py` for signed releases.
 
 ## Components and prototypes
 

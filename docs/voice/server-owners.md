@@ -10,49 +10,73 @@ relays or third-party services. Nothing is recorded; the server forwards Opus fr
 
 ## Client distribution
 
-How SS14 delivers a server's build:
+SS14 delivers a server's build in two parts:
 
-* **Content** (`Content.Client.dll`, `Content.Shared.dll`, resources/prototypes): delivered by your server (via
-  `build.download_url` / manifest, or ACZ when the server hosts it itself). Every voice system lives here, so
-  content-side updates reach players automatically.
-* **Engine** (RobustToolbox): the launcher downloads it **by version number** (`build.engine_version`) from the
-  official Space Wizards build servers. A server can't make the official launcher run its own engine build.
+* **Content** (all `Content.*` code, prototypes, resources, every voice system) comes from your server, as usual.
+* **Engine** (RobustToolbox) is fetched by the launcher **by version number** from an engine manifest, and the loader
+  checks the engine's signature before running it.
 
-Voice chat needs three engine primitives (microphone capture, streaming audio, Opus) that aren't in an official engine
-release yet. They're kept as a patch series in `Tools/voice/engine-patches/`.
+Voice chat needs a modified engine, so this setup uses three repositories:
 
-### What this means today
+| Repository | Branch | Role |
+|---|---|---|
+| `SkellyVamps/space-station-14` | your server branch | Content. Its `RobustToolbox` submodule points at the engine fork |
+| `SkellyVamps/RobustToolbox` | `voice-chat-engine` | Engine with voice primitives. Version `293.0.1.1` = upstream `293.0.1` + voice build 1. Tagging publishes signed builds and updates `manifest.json` on the `robust-builds` branch |
+| `SkellyVamps/SS14.Launcher` | `voice-chat` | Launcher players install. Merges your engine manifest with the official one and trusts your signing key as well as the official one |
 
-| Setup | Works? |
-|---|---|
-| Local development (`runserver` + `runclient` with the patched submodule) | Yes |
-| Integration tests | Yes |
-| Public server + official launcher, unpatched official engine | **No: clients fail to load the content.** Don't deploy yet. |
+Official engine versions are never overridden, so the fork launcher keeps working for every official server. Official
+launchers can't run the fork engine, so players must use your launcher for your server.
 
-### Getting to "join the server and it just works"
+### One-time setup
 
-1. **Upstream the engine patch (recommended).** Submit `Tools/voice/engine-patches/*.patch` to
-   [space-wizards/RobustToolbox](https://github.com/space-wizards/RobustToolbox) as a PR. It's additive, generic and
-   has tests, which is what upstream usually needs. Once it's in a released engine version, bump the
-   `RobustToolbox` submodule to that version, remove the patch step, and the official launcher delivers everything:
-   no installs for players.
-2. **Your own launcher + engine builds.** Fork RobustToolbox with the patch, publish engine builds with your own
-   manifest and signing key, and ship a fork of SS14.Launcher pointed at them. Works immediately, but every player must
-   install your launcher, which breaks the "normal launcher" goal.
+1. **Create the signing key** on your own machine. Keep `engine_signing_key.pem` private: anyone with it can make
+   engines your players' launchers will run.
+   ```bash
+   openssl genpkey -algorithm ed25519 -out engine_signing_key.pem
+   openssl pkey -in engine_signing_key.pem -pubout -out signing_key_custom
+   ```
+2. **Store the private key** in `SkellyVamps/RobustToolbox` -> Settings -> Secrets and variables -> Actions -> New
+   repository secret, named `ENGINE_SIGNING_KEY`, with the full contents of `engine_signing_key.pem`.
+3. **Enable Actions on both forks.** GitHub disables workflows on new forks: open each fork's Actions tab and enable them.
+4. **Add the public key to the launcher.** Commit `signing_key_custom` as `SS14.Launcher/signing_key_custom` on the
+   launcher's `voice-chat` branch.
 
-Until (1) lands, keep voice on a test server where testers run the patched client from source.
+### Publishing an engine build
 
-### Building with the patch
+The engine version in `RobustToolbox/MSBuild/Robust.Engine.Version.props` must match the tag.
 
 ```bash
-git submodule update --init --recursive
-Tools/voice/apply-engine-patches.sh     # idempotent
-python RUN_THIS.py                      # as usual
-dotnet build -c Release
+cd RobustToolbox
+git tag v293.0.1.1
+git push origin v293.0.1.1
 ```
 
-If you create a RobustToolbox fork, push the patched branch there and point `.gitmodules` at it instead of running the
-script; that keeps CI and packaging unchanged.
+`publish-fork-build.yml` builds Windows/macOS/Linux/FreeBSD clients, attaches them to a GitHub release, signs them and
+adds them to `https://raw.githubusercontent.com/SkellyVamps/RobustToolbox/robust-builds/manifest.json`.
+The engine build must be published **before** players join a server running that engine version.
+
+### Publishing the launcher
+
+On the launcher's `voice-chat` branch, push a tag (e.g. `v0.40.3-voice1`). `publish-release.yml` creates a GitHub
+release with Windows, macOS and Linux zips. Point players at that release page. The launcher builds aren't
+code-signed, so Windows SmartScreen and macOS Gatekeeper will warn on first launch.
+
+### Running the server
+
+Build and host the server from this repository as usual. The server advertises `build.engine_version` = `293.0.1.1`
+automatically (from the engine fork's version), whether you host the client zip yourself or use a CDN.
+Your server still appears on the official hub; players without your launcher get an "engine version not found" error.
+
+### Updating to a newer upstream engine
+
+1. In `SkellyVamps/RobustToolbox`, merge the upstream release tag into `voice-chat-engine`.
+2. Set the version to `<upstream version>.1` (e.g. `294.0.0.1`), commit, tag `v294.0.0.1`, push the tag.
+3. Bump the content repo's `RobustToolbox` submodule to that commit, as you would for an upstream engine update.
+
+### Updating the launcher
+
+Merge upstream SS14.Launcher into `voice-chat` (the fork's changes are small and marked "Voice chat fork"), then tag a
+new release. See `VOICE_FORK.md` in the launcher fork.
 
 ## Configuration
 
