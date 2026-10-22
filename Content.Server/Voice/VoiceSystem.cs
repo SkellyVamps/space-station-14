@@ -192,6 +192,13 @@ public sealed partial class VoiceSystem : EntitySystem
             state.Entity = speaker;
             state.Local.Clear();
             state.RecipientsComputed = TimeSpan.Zero;
+
+            // New body, new radio stream ids, so the old and new body can't be linked by stream id.
+            foreach (var route in state.Radio.Values)
+            {
+                _usedStreamIds.Remove(route.StreamId);
+            }
+
             state.Radio.Clear();
         }
 

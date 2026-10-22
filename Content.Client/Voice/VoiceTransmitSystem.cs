@@ -5,6 +5,7 @@ using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
 using Content.Shared.Voice.Dsp;
 using Robust.Client.Audio.Realtime;
+using Robust.Client.Graphics;
 using Robust.Client.Player;
 using Robust.Client.UserInterface;
 using Robust.Shared.Audio.Codecs;
@@ -43,6 +44,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     [Dependency] private IPlayerManager _player = default!;
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private IUserInterfaceManager _ui = default!;
+    [Dependency] private IClyde _clyde = default!;
     [Dependency] private IRealtimeAudioManager _realtime = default!;
     [Dependency] private VoiceCaptureSystem _capture = default!;
 
@@ -146,6 +148,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceNoiseGate, v => _noiseGate = v, true);
 
         _net.Disconnect += OnDisconnect;
+        _clyde.OnWindowFocused += OnWindowFocused;
     }
 
     public override void Shutdown()
@@ -153,6 +156,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         base.Shutdown();
         CommandBinds.Unregister<VoiceTransmitSystem>();
         _net.Disconnect -= OnDisconnect;
+        _clyde.OnWindowFocused -= OnWindowFocused;
         StopTest();
         _capture.Release(this);
     }
@@ -164,6 +168,16 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         _transmitting = false;
         AdminMuted = false;
         _capture.Release(this);
+    }
+
+    private void OnWindowFocused(WindowFocusedEventArgs args)
+    {
+        // The key-up may never arrive if the window loses focus while push to talk is held: never stay keyed.
+        if (!args.Focused)
+        {
+            _pttLocal = false;
+            _pttRadio = false;
+        }
     }
 
     private void OnAdminMute(VoiceAdminMuteStateEvent ev)
