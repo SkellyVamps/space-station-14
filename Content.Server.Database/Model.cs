@@ -333,6 +333,13 @@ namespace Content.Server.Database
         public int Age { get; set; }
         public string Sex { get; set; } = null!;
         public string? Voice { get; set; } = null!; // If null, the voice gets defaulted to the sex associated value
+
+        // Procedural voice chat profile (see Content.Shared.Voice.VoiceProfile). 0 = neutral.
+        public float VoicePitch { get; set; }
+        public float VoiceFormant { get; set; }
+        public float VoiceBrightness { get; set; }
+        public float VoiceRoughness { get; set; }
+        public float VoiceBreathiness { get; set; }
         public string Gender { get; set; } = null!;
         public string Species { get; set; } = null!;
         [Column(TypeName = "jsonb")] public JsonDocument? OrganMarkings { get; set; } = null!;

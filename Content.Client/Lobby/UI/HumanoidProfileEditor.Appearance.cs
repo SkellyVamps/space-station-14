@@ -220,6 +220,7 @@ public sealed partial class HumanoidProfileEditor
         RefreshLoadouts();
         UpdateSexControls(); // update sex for new species
         UpdateVoiceControls();
+        UpdateCharacterVoiceControls(); // species colours the voice preview
         UpdateSpeciesGuidebookIcon();
         ReloadPreview();
     }

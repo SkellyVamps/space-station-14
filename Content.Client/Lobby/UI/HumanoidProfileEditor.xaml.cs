@@ -321,6 +321,8 @@ namespace Content.Client.Lobby.UI
 
             SpeciesInfoButton.OnPressed += OnSpeciesInfoButtonPressed;
 
+            InitializeCharacterVoice();
+
             UpdateSpeciesGuidebookIcon();
             IsDirty = false;
         }
@@ -379,6 +381,7 @@ namespace Content.Client.Lobby.UI
             UpdateFlavorTextEdit();
             UpdateSexControls();
             UpdateVoiceControls();
+            UpdateCharacterVoiceControls();
             UpdateGenderControls();
             UpdateSkinColor();
             UpdateSpawnPriorityControls();
@@ -423,6 +426,7 @@ namespace Content.Client.Lobby.UI
 
             _loadoutWindow?.Dispose();
             _loadoutWindow = null;
+            StopCharacterVoicePreview();
         }
 
         protected override void EnteredTree()

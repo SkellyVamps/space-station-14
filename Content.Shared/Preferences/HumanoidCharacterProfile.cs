@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Content.Shared.CCVar;
+using Content.Shared.Voice;
 using Content.Shared.Chat.Prototypes;
 using Content.Shared.EntityEffects.Effects;
 using Content.Shared.GameTicking;
@@ -95,6 +96,12 @@ namespace Content.Shared.Preferences
 
         [DataField]
         public Gender Gender { get; private set; } = Gender.Male;
+
+        /// <summary>
+        /// Procedural voice chat profile of this character (pitch, formant...). Not the player's real voice.
+        /// </summary>
+        [DataField]
+        public VoiceProfile CharacterVoice { get; set; }
 
         /// <summary>
         /// Stores markings, eye colors, etc for the profile.
@@ -193,6 +200,7 @@ namespace Content.Shared.Preferences
                 new HashSet<ProtoId<TraitPrototype>>(other.TraitPreferences),
                 new Dictionary<string, RoleLoadout>(other.Loadouts))
         {
+            CharacterVoice = other.CharacterVoice;
         }
 
         /// <summary>
@@ -414,6 +422,11 @@ namespace Content.Shared.Preferences
             return new(this) { Voice = voice };
         }
 
+        public HumanoidCharacterProfile WithCharacterVoice(VoiceProfile voice)
+        {
+            return new(this) { CharacterVoice = voice };
+        }
+
         public HumanoidCharacterProfile WithGender(Gender gender)
         {
             return new(this) { Gender = gender };
@@ -617,6 +630,7 @@ namespace Content.Shared.Preferences
             if (Age != other.Age) return false;
             if (Sex != other.Sex) return false;
             if (Voice != other.Voice) return false;
+            if (CharacterVoice != other.CharacterVoice) return false;
             if (Gender != other.Gender) return false;
             if (Species != other.Species) return false;
             if (PreferenceUnavailable != other.PreferenceUnavailable) return false;
@@ -774,6 +788,9 @@ namespace Content.Shared.Preferences
             }
 
             PreferenceUnavailable = prefsUnavailableMode;
+            CharacterVoice = CharacterVoice.Clamped(
+                configManager.GetCVar(CCVars.VoiceProfileMaxPitch),
+                configManager.GetCVar(CCVars.VoiceProfileMaxFormant));
 
             _antagPreferences.Clear();
             _antagPreferences.UnionWith(antags);
@@ -883,6 +900,7 @@ namespace Content.Shared.Preferences
             hashCode.Add(Age);
             hashCode.Add((int)Sex);
             hashCode.Add(Voice);
+            hashCode.Add(CharacterVoice);
             hashCode.Add((int)Gender);
             hashCode.Add(Appearance);
             hashCode.Add((int)SpawnPriority);

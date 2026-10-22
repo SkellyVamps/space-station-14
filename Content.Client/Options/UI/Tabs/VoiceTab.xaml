@@ -1,0 +1,39 @@
+<Control xmlns="https://spacestation14.io"
+         xmlns:ui="clr-namespace:Content.Client.Options.UI">
+    <BoxContainer Orientation="Vertical">
+        <ScrollContainer VerticalExpand="True" HScrollEnabled="False">
+            <BoxContainer Orientation="Vertical" Margin="8 8 8 8">
+                <Label Text="{Loc 'ui-options-voice-header'}" StyleClasses="LabelKeyText" />
+                <Label Name="StatusLabel" StyleClasses="LabelSubText" Margin="0 0 0 6" />
+                <CheckBox Name="EnabledCheckBox" Text="{Loc 'ui-options-voice-enabled'}" />
+
+                <Label Text="{Loc 'ui-options-voice-input-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
+                <ui:OptionDropDown Name="DropDownInputDevice" Title="{Loc 'ui-options-voice-input-device'}" />
+                <ui:OptionSlider Name="SliderInputGain" Title="{Loc 'ui-options-voice-input-gain'}" />
+                <BoxContainer Orientation="Horizontal" Margin="0 4 0 4">
+                    <Label Text="{Loc 'ui-options-voice-level'}" MinWidth="160" />
+                    <ProgressBar Name="LevelMeter" MinValue="-80" MaxValue="0" Value="-80"
+                                 HorizontalExpand="True" MinHeight="14" />
+                    <Label Name="LevelLabel" MinWidth="70" Align="Right" />
+                </BoxContainer>
+                <Button Name="MicTestButton" ToggleMode="True" Text="{Loc 'ui-options-voice-mic-test'}"
+                        ToolTip="{Loc 'ui-options-voice-mic-test-tooltip'}" HorizontalAlignment="Left" />
+
+                <Label Text="{Loc 'ui-options-voice-transmit-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
+                <ui:OptionDropDown Name="DropDownInputMode" Title="{Loc 'ui-options-voice-input-mode'}" />
+                <Label Name="PushToTalkHint" StyleClasses="LabelSubText" />
+                <ui:OptionSlider Name="SliderActivationThreshold" Title="{Loc 'ui-options-voice-activation-threshold'}" />
+                <ui:OptionSlider Name="SliderActivationRelease" Title="{Loc 'ui-options-voice-activation-release'}" />
+                <ui:OptionSlider Name="SliderNoiseGate" Title="{Loc 'ui-options-voice-noise-gate'}" />
+
+                <Label Text="{Loc 'ui-options-voice-output-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
+                <ui:OptionSlider Name="SliderOutputVolume" Title="{Loc 'ui-options-voice-output-volume'}" />
+                <ui:OptionSlider Name="SliderRadioVolume" Title="{Loc 'ui-options-voice-radio-volume'}" />
+                <ui:OptionSlider Name="SliderJitterBuffer" Title="{Loc 'ui-options-voice-jitter-buffer'}" />
+                <CheckBox Name="IndicatorsCheckBox" Text="{Loc 'ui-options-voice-indicators'}" />
+                <Label Text="{Loc 'ui-options-voice-mute-hint'}" StyleClasses="LabelSubText" Margin="0 6 0 0" />
+            </BoxContainer>
+        </ScrollContainer>
+        <ui:OptionsTabControlRow Name="Control" Access="Public" />
+    </BoxContainer>
+</Control>

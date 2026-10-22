@@ -25,6 +25,7 @@ namespace Content.Client.Voice;
 public sealed partial class VoicePlaybackSystem : EntitySystem
 {
     [Dependency] private IClientNetManager _net = default!;
+    [Dependency] private VoiceNetManager _voiceNet = default!;
     [Dependency] private IRealtimeAudioManager _realtime = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IGameTiming _timing = default!;
@@ -53,11 +54,21 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
 
     public int StreamCount => _streams.Count;
 
+    /// <summary>
+    /// Total voice packets received from the server. Diagnostics.
+    /// </summary>
+    public long PacketsReceived { get; private set; }
+
+    /// <summary>
+    /// The most recent packet received. Diagnostics and tests.
+    /// </summary>
+    public (VoiceReceiveMode Mode, NetEntity Speaker, string? Channel, byte Gain, byte Muffle)? LastPacket { get; private set; }
+
     public override void Initialize()
     {
         base.Initialize();
 
-        _net.RegisterNetMessage<MsgVoiceReceive>(OnReceive);
+        _voiceNet.VoiceReceived += OnReceive;
         SubscribeNetworkEvent<VoicePlayerVolumeChangedEvent>(OnPlayerVolumeChanged);
 
         Subs.CVar(_cfg, CCVars.VoiceClientEnabled, v => { _enabled = v; if (!v) ClearStreams(); }, true);
@@ -67,12 +78,19 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceJitterBufferMs, v => _jitterMs = Math.Clamp(v, 20, 400), true);
         Subs.CVar(_cfg, CCVars.VoiceRadioFilter, v => _radioFilter = v, true);
 
-        _net.Disconnect += (_, _) => ClearStreams();
+        _net.Disconnect += OnDisconnect;
     }
 
     public override void Shutdown()
     {
         base.Shutdown();
+        _voiceNet.VoiceReceived -= OnReceive;
+        _net.Disconnect -= OnDisconnect;
+        ClearStreams();
+    }
+
+    private void OnDisconnect(object? sender, NetDisconnectedArgs args)
+    {
         ClearStreams();
     }
 
@@ -100,6 +118,9 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
 
     private void OnReceive(MsgVoiceReceive msg)
     {
+        PacketsReceived++;
+        LastPacket = (msg.Mode, msg.Speaker, msg.Channel, msg.Gain, msg.Muffle);
+
         if (!_enabled)
             return;
 

@@ -1,3 +1,4 @@
+using Content.Shared.DoAfter;
 using Content.Shared.Inventory;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization;
@@ -11,6 +12,12 @@ namespace Content.Shared.Voice;
 public sealed class VoiceModifiersEvent : EntityEventArgs, IInventoryRelayEvent
 {
     public SlotFlags TargetSlots => SlotFlags.WITHOUT_POCKET;
+
+    /// <summary>
+    /// Only collect the body's own voice (species, implants), ignoring equipment, disguises and status.
+    /// Used when recording someone's voice for impersonation.
+    /// </summary>
+    public bool InnateOnly;
 
     /// <summary>
     /// Summed offsets added to the base profile.
@@ -109,3 +116,9 @@ public sealed class VoiceAdminMuteStateEvent(bool muted, TimeSpan? expires) : En
     public bool Muted = muted;
     public TimeSpan? Expires = expires;
 }
+
+/// <summary>
+/// Recording someone's voice into a <see cref="Components.VoiceImpersonatorComponent"/>.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed partial class VoiceSampleDoAfterEvent : SimpleDoAfterEvent;

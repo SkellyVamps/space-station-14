@@ -124,8 +124,6 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     {
         base.Initialize();
 
-        _net.RegisterNetMessage<MsgVoiceTransmit>();
-
         SubscribeNetworkEvent<VoiceAdminMuteStateEvent>(OnAdminMute);
 
         CommandBinds.Builder
@@ -147,18 +145,19 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceActivationRelease, v => _activationRelease = v, true);
         Subs.CVar(_cfg, CCVars.VoiceNoiseGate, v => _noiseGate = v, true);
 
-        _net.Disconnect += (_, _) => OnDisconnect();
+        _net.Disconnect += OnDisconnect;
     }
 
     public override void Shutdown()
     {
         base.Shutdown();
         CommandBinds.Unregister<VoiceTransmitSystem>();
+        _net.Disconnect -= OnDisconnect;
         StopTest();
         _capture.Release(this);
     }
 
-    private void OnDisconnect()
+    private void OnDisconnect(object? sender, NetDisconnectedArgs args)
     {
         _pttLocal = false;
         _pttRadio = false;

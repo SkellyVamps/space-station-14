@@ -54,7 +54,7 @@ public sealed partial class VoiceModifierSystem : EntitySystem
 
     private void OnWornModifier(Entity<VoiceModifierComponent> ent, ref InventoryRelayedEvent<VoiceModifiersEvent> args)
     {
-        if (!ent.Comp.Enabled || !InActiveSlot(ent, ent.Comp.Slots))
+        if (args.Args.InnateOnly || !ent.Comp.Enabled || !InActiveSlot(ent, ent.Comp.Slots))
             return;
 
         if (ent.Comp.RequireMaskUp && TryComp<MaskComponent>(ent, out var mask) && mask.IsToggled)
@@ -94,7 +94,7 @@ public sealed partial class VoiceModifierSystem : EntitySystem
 
     private void ApplyDisguise(EntityUid uid, VoiceDisguiseComponent comp, VoiceModifiersEvent ev)
     {
-        if (!DisguiseActive(uid, comp.Enabled))
+        if (ev.InnateOnly || !DisguiseActive(uid, comp.Enabled))
             return;
 
         var disguise = VoiceProfile.FromSeed(comp.Seed, comp.Strength);
@@ -113,7 +113,7 @@ public sealed partial class VoiceModifierSystem : EntitySystem
 
     private void ApplyImpersonation(EntityUid uid, VoiceImpersonatorComponent comp, VoiceModifiersEvent ev)
     {
-        if (!TryComp<VoiceMaskComponent>(uid, out var voiceMask)
+        if (ev.InnateOnly || !TryComp<VoiceMaskComponent>(uid, out var voiceMask)
             || !DisguiseActive(uid, true)
             || voiceMask.VoiceMaskName is not { } name
             || !comp.Samples.TryGetValue(name, out var sample))

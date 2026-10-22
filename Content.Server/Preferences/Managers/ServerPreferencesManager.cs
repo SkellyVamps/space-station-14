@@ -13,6 +13,7 @@ using Content.Shared.Humanoid;
 using Content.Shared.Humanoid.Markings;
 using Content.Shared.Humanoid.Prototypes;
 using Content.Shared.Preferences;
+using Content.Shared.Voice;
 using Content.Shared.Preferences.Loadouts;
 using Content.Shared.Roles;
 using Content.Shared.Traits;
@@ -197,7 +198,15 @@ namespace Content.Server.Preferences.Managers
                 antags.ToHashSet(),
                 traits.ToHashSet(),
                 loadouts
-            );
+            )
+            {
+                CharacterVoice = new VoiceProfile(
+                    profile.VoicePitch,
+                    profile.VoiceFormant,
+                    profile.VoiceBrightness,
+                    profile.VoiceRoughness,
+                    profile.VoiceBreathiness),
+            };
         }
 
         private async void HandleSelectCharacterMessage(MsgSelectCharacter message)

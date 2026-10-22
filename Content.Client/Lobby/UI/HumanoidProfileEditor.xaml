@@ -94,6 +94,8 @@
                                     <Control HorizontalExpand="True" />
                                     <OptionButton Name="VoiceButton" HorizontalAlignment="Right" />
                                 </BoxContainer>
+                                <!-- Voice chat character voice -->
+                                <BoxContainer Name="CharacterVoiceContainer" Orientation="Vertical" HorizontalExpand="True" />
                                 <!-- Pronouns -->
                                 <BoxContainer HorizontalExpand="True">
                                     <Label Text="{Loc 'humanoid-profile-editor-pronouns-label'}" />

@@ -1,6 +1,7 @@
 using Content.Shared.ActionBlocker;
 using Content.Shared.CCVar;
 using Content.Shared.Clothing;
+using Content.Shared.GameTicking;
 using Content.Shared.Ghost;
 using Content.Shared.Ghost.Components;
 using Content.Shared.Inventory.Events;
@@ -51,6 +52,7 @@ public sealed partial class VoiceProfileSystem : EntitySystem
         base.Initialize();
 
         SubscribeLocalEvent<ActorComponent, ComponentStartup>(OnActorStartup);
+        SubscribeLocalEvent<PlayerSpawnCompleteEvent>(OnPlayerSpawned);
         SubscribeLocalEvent<PlayerAttachedEvent>(OnAttached);
         SubscribeLocalEvent<PlayerDetachedEvent>(OnDetached);
 
@@ -62,6 +64,24 @@ public sealed partial class VoiceProfileSystem : EntitySystem
         SubscribeLocalEvent<ItemMaskToggledEvent>(OnMaskToggled);
 
         Subs.CVar(_cfg, CCVars.VoiceGhostVoice, v => _ghostVoice = v, true);
+    }
+
+    private void OnPlayerSpawned(PlayerSpawnCompleteEvent ev)
+    {
+        // The character's own procedural voice comes from their character profile.
+        SetCharacterVoice(ev.Mob, ev.Profile.CharacterVoice);
+    }
+
+    /// <summary>
+    /// Sets the base (character) voice of an entity, e.g. when a character spawns or is cloned.
+    /// </summary>
+    public void SetCharacterVoice(EntityUid uid, VoiceProfile profile)
+    {
+        var character = EnsureComp<VoiceCharacterComponent>(uid);
+        character.Profile = profile.Clamped(_cfg.GetCVar(CCVars.VoiceProfileMaxPitch), _cfg.GetCVar(CCVars.VoiceProfileMaxFormant));
+
+        if (TryComp<VoiceSpeakerComponent>(uid, out var speaker))
+            Refresh(uid, speaker);
     }
 
     private void OnActorStartup(Entity<ActorComponent> ent, ref ComponentStartup args)
@@ -134,6 +154,20 @@ public sealed partial class VoiceProfileSystem : EntitySystem
         });
 
         return (profile, filters);
+    }
+
+    /// <summary>
+    /// The voice someone's body produces on its own (character + species), without equipment or disguises.
+    /// </summary>
+    public (VoiceProfile Profile, List<ProtoId<VoiceFilterPrototype>> Filters) GetInnateVoice(EntityUid uid)
+    {
+        var ev = new VoiceModifiersEvent { InnateOnly = true };
+        RaiseLocalEvent(uid, ev);
+
+        var baseProfile = TryComp<VoiceCharacterComponent>(uid, out var character) ? character.Profile : VoiceProfile.Neutral;
+        var filters = new List<ProtoId<VoiceFilterPrototype>>();
+        AddFilters(filters, ev.InnateFilters);
+        return (baseProfile.Add(ev.ProfileOffset), filters);
     }
 
     private void AddFilters(List<ProtoId<VoiceFilterPrototype>> into, List<ProtoId<VoiceFilterPrototype>> from)

@@ -41,6 +41,7 @@ namespace Content.Server.Voice;
 public sealed partial class VoiceSystem : EntitySystem
 {
     [Dependency] private IServerNetManager _net = default!;
+    [Dependency] private VoiceNetManager _voiceNet = default!;
     [Dependency] private IPlayerManager _players = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
@@ -102,8 +103,7 @@ public sealed partial class VoiceSystem : EntitySystem
         _ghostQuery = GetEntityQuery<GhostComponent>();
         _ghostHearingQuery = GetEntityQuery<GhostHearingComponent>();
 
-        _net.RegisterNetMessage<MsgVoiceTransmit>(OnTransmit);
-        _net.RegisterNetMessage<MsgVoiceReceive>();
+        _voiceNet.TransmitReceived += OnTransmit;
 
         _players.PlayerStatusChanged += OnPlayerStatusChanged;
 
@@ -126,6 +126,7 @@ public sealed partial class VoiceSystem : EntitySystem
     {
         base.Shutdown();
         _players.PlayerStatusChanged -= OnPlayerStatusChanged;
+        _voiceNet.TransmitReceived -= OnTransmit;
     }
 
     private void OnPlayerStatusChanged(object? sender, SessionStatusEventArgs e)
@@ -141,12 +142,19 @@ public sealed partial class VoiceSystem : EntitySystem
 
     private void OnTransmit(MsgVoiceTransmit msg)
     {
+        if (_players.TryGetSessionByChannel(msg.MsgChannel, out var session))
+            HandleTransmit(session, msg);
+    }
+
+    /// <summary>
+    /// Processes a voice frame sent by <paramref name="session"/>. The speaker is always the session's attached
+    /// entity.
+    /// </summary>
+    public void HandleTransmit(ICommonSession session, MsgVoiceTransmit msg)
+    {
         Stats.PacketsReceived++;
 
-        if (!_enabled)
-            return;
-
-        if (!_players.TryGetSessionByChannel(msg.MsgChannel, out var session)
+        if (!_enabled
             || session.Status != SessionStatus.InGame
             || session.AttachedEntity is not { } speaker)
         {
@@ -303,15 +311,20 @@ public sealed partial class VoiceSystem : EntitySystem
                 continue;
 
             var volume = _moderation.GetListenerVolume(recipient.Session.UserId, session.UserId);
+            if (volume <= 0)
+            {
+                Stats.PacketsSuppressed++;
+                continue;
+            }
+
             var gain = recipient.Gain * gainMultiplier * volume;
             if (gain < _minGain)
                 continue;
 
             outgoing.Gain = Quantize(gain);
             outgoing.Muffle = Quantize(recipient.Muffle);
-            _net.ServerSendMessage(outgoing, recipient.Session.Channel);
-            Stats.PacketsSent++;
-            Stats.BytesSent += msg.Payload.Length + 12;
+            if (TrySend(outgoing, recipient.Session))
+                Stats.BytesSent += msg.Payload.Length + 12;
         }
     }
 
@@ -363,7 +376,10 @@ public sealed partial class VoiceSystem : EntitySystem
 
             var volume = _moderation.GetListenerVolume(listener.UserId, session.UserId);
             if (volume <= 0)
+            {
+                Stats.PacketsSuppressed++;
                 continue;
+            }
 
             // Send the name with the first packets of a transmission and periodically after.
             if (!radio.NameSent.TryGetValue(listener, out var sentAt) || now - sentAt > NameInterval)
@@ -377,9 +393,25 @@ public sealed partial class VoiceSystem : EntitySystem
             }
 
             outgoing.Gain = Quantize(volume);
-            _net.ServerSendMessage(outgoing, listener.Channel);
+            if (TrySend(outgoing, listener))
+                Stats.BytesSent += msg.Payload.Length + 16;
+        }
+    }
+
+    private bool TrySend(MsgVoiceReceive message, ICommonSession session)
+    {
+        try
+        {
+            _net.ServerSendMessage(message, session.Channel);
             Stats.PacketsSent++;
-            Stats.BytesSent += msg.Payload.Length + 16;
+            return true;
+        }
+        catch (Exception e)
+        {
+            // A bad recipient must never stop delivery to everyone else.
+            Stats.SendFailures++;
+            Log.Debug($"Failed to send voice to {session}: {e.Message}");
+            return false;
         }
     }
 
@@ -516,6 +548,26 @@ public sealed partial class VoiceSystem : EntitySystem
 
         Stats.RecipientUpdates++;
         Stats.RecipientTime += _timing.RealTime - start;
+    }
+
+    /// <summary>
+    /// Computes who would currently hear <paramref name="speaker"/> talking locally, and how well.
+    /// For debugging tools and tests; routing uses its own cached lists.
+    /// </summary>
+    public List<(ICommonSession Session, float Gain, float Muffle)> GetLocalListeners(EntityUid speaker)
+    {
+        var state = new SpeakerState { Entity = speaker };
+        var result = new List<(ICommonSession, float, float)>();
+        if (!_speakerQuery.TryComp(speaker, out var comp))
+            return result;
+
+        UpdateLocalRecipients(state, comp);
+        foreach (var recipient in state.Local)
+        {
+            result.Add((recipient.Session, recipient.Gain, recipient.Muffle));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -678,4 +730,6 @@ public struct VoiceStats
     public long RecipientUpdates;
     public TimeSpan RecipientTime;
     public long StreamsCapped;
+    public long PacketsSuppressed;
+    public long SendFailures;
 }

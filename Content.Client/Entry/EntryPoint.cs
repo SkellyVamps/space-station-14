@@ -78,6 +78,7 @@ namespace Content.Client.Entry
         [Dependency] private IEntitySystemManager _entitySystemManager = default!;
         [Dependency] private ClientsidePlaytimeTrackingManager _clientsidePlaytimeManager = default!;
         [Dependency] private ClientFeedbackManager _feedbackManager = null!;
+        [Dependency] private Content.Shared.Voice.VoiceNetManager _voiceNet = null!;
 
         public override void PreInit()
         {
@@ -170,6 +171,7 @@ namespace Content.Client.Entry
             _documentParsingManager.Initialize();
             _titleWindowManager.Initialize();
             _feedbackManager.Initialize();
+            _voiceNet.Initialize();
 
             _baseClient.RunLevelChanged += (_, args) =>
             {

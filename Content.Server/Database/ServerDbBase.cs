@@ -215,6 +215,11 @@ namespace Content.Server.Database
             profile.Age = humanoid.Age;
             profile.Sex = humanoid.Sex.ToString();
             profile.Voice = humanoid.Voice.ToString();
+            profile.VoicePitch = humanoid.CharacterVoice.Pitch;
+            profile.VoiceFormant = humanoid.CharacterVoice.Formant;
+            profile.VoiceBrightness = humanoid.CharacterVoice.Brightness;
+            profile.VoiceRoughness = humanoid.CharacterVoice.Roughness;
+            profile.VoiceBreathiness = humanoid.CharacterVoice.Breathiness;
             profile.Gender = humanoid.Gender.ToString();
             profile.EyeColor = appearance.EyeColor.ToHex();
             profile.SkinColor = appearance.SkinColor.ToHex();
