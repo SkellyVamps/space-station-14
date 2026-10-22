@@ -116,6 +116,12 @@ binds:
 - function: FocusRadioWindow
   type: State
   key: SemiColon
+- function: VoicePushToTalk
+  type: State
+  key: N
+- function: VoiceRadioPushToTalk
+  type: State
+  key: M
 - function: FocusLOOCWindow
   type: State
   mod1: Shift

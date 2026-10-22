@@ -33,6 +33,7 @@ using Content.Shared.Standing;
 using Content.Shared.Strip.Components;
 using Content.Shared.Temperature;
 using Content.Shared.Verbs;
+using Content.Shared.Voice;
 using Content.Shared.VoiceMask;
 using Content.Shared.Waypointer.Events;
 using Content.Shared.Weapons.Ranged.Events;
@@ -70,6 +71,8 @@ public partial class InventorySystem
         SubscribeLocalEvent<InventoryComponent, BeforeEmoteEvent>(RelayInventoryEvent);
         SubscribeLocalEvent<InventoryComponent, StoodEvent>(RelayInventoryEvent);
         SubscribeLocalEvent<InventoryComponent, DownedEvent>(RelayInventoryEvent);
+        SubscribeLocalEvent<InventoryComponent, VoiceModifiersEvent>(RelayInventoryEvent);
+        SubscribeLocalEvent<InventoryComponent, VoiceHearingEvent>(RelayInventoryEvent);
 
         // by-ref events
         SubscribeLocalEvent<InventoryComponent, AccentGetEvent>(RefRelayInventoryEvent);

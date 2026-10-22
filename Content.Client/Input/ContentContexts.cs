@@ -17,6 +17,8 @@ namespace Content.Client.Input
             common.AddFunction(ContentKeyFunctions.FocusEmote);
             common.AddFunction(ContentKeyFunctions.FocusWhisperChat);
             common.AddFunction(ContentKeyFunctions.FocusRadio);
+            common.AddFunction(ContentKeyFunctions.VoicePushToTalk);
+            common.AddFunction(ContentKeyFunctions.VoiceRadioPushToTalk);
             common.AddFunction(ContentKeyFunctions.FocusLOOC);
             common.AddFunction(ContentKeyFunctions.FocusOOC);
             common.AddFunction(ContentKeyFunctions.FocusAdminChat);
