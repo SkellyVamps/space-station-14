@@ -290,6 +290,31 @@ public sealed partial class CCVars
         CVarDef.Create("voice.show_indicators", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
+    ///     Whether to show the radio panel (who is talking on the radio, which channels to listen and talk on).
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceShowRadioPanel =
+        CVarDef.Create("voice.show_radio_panel", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Where the player dragged the radio panel to, as "x,y" in UI units from the top left. Empty for the default
+    ///     position.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceRadioPanelPosition =
+        CVarDef.Create("voice.radio_panel_position", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Whether the radio panel's channel settings are expanded.
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceRadioPanelExpanded =
+        CVarDef.Create("voice.radio_panel_expanded", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Comma separated radio channel IDs the player doesn't want to hear voice on.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceRadioMutedChannels =
+        CVarDef.Create("voice.radio_muted_channels", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
     ///     Target jitter buffer depth in milliseconds. Larger is smoother on bad connections but adds latency.
     /// </summary>
     public static readonly CVarDef<int> VoiceJitterBufferMs =

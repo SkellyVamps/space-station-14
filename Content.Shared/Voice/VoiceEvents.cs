@@ -122,3 +122,13 @@ public sealed class VoiceAdminMuteStateEvent(bool muted, TimeSpan? expires) : En
 /// </summary>
 [Serializable, NetSerializable]
 public sealed partial class VoiceSampleDoAfterEvent : SimpleDoAfterEvent;
+
+/// <summary>
+/// Client tells the server which radio channels it doesn't want to hear voice on. The server stops sending radio
+/// voice on those channels to this player. Text radio is unaffected.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceSetRadioMutedChannelsEvent(List<string> channels) : EntityEventArgs
+{
+    public List<string> Channels = channels;
+}

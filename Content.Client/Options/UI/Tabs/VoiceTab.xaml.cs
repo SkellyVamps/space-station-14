@@ -51,8 +51,15 @@ public sealed partial class VoiceTab : Control
         Control.AddOptionPercentSlider(CCVars.VoiceRadioVolume, SliderRadioVolume, 0f, 2f);
         Control.AddOptionSlider(CCVars.VoiceJitterBufferMs, SliderJitterBuffer, 20, 300, FormatMs);
         Control.AddOptionCheckBox(CCVars.VoiceShowIndicators, IndicatorsCheckBox);
+        Control.AddOptionCheckBox(CCVars.VoiceShowRadioPanel, RadioPanelCheckBox);
 
         Control.Initialize();
+
+        RadioPanelResetButton.OnPressed += _ =>
+        {
+            _cfg.SetCVar(CCVars.VoiceRadioPanelPosition, string.Empty);
+            _cfg.SaveToFile();
+        };
 
         MicTestButton.OnToggled += args =>
         {

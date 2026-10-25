@@ -79,6 +79,8 @@ ui-options-voice-output-volume = Voice volume
 ui-options-voice-radio-volume = Radio voice volume
 ui-options-voice-jitter-buffer = Network buffer (smoothness vs. delay)
 ui-options-voice-indicators = Show speaking indicators
+ui-options-voice-radio-panel = Show radio panel
+ui-options-voice-radio-panel-reset = Reset radio panel position
 ui-options-voice-mute-hint = To mute or change the volume of a specific player, right click them and use the Voice menu.
 
 ui-options-voice-status-server-disabled = Voice chat is disabled on this server.
@@ -99,3 +101,16 @@ cmd-voiceradio-available = Available channels: { $channels }
 cmd-voiceradio-unavailable = You can't transmit on { $channel }.
 cmd-voiceradio-set = Radio push to talk now transmits on { $channel }.
 cmd-voiceradio-hint = <channel>
+
+## Radio panel
+
+voice-radio-panel-title = Radio
+voice-radio-panel-settings-tooltip = Choose which channels you hear and talk on. Drag the panel to move it.
+voice-radio-panel-nobody = Nobody is talking
+voice-radio-panel-speaker = [{ $channel }] { $name }
+voice-radio-panel-unknown-speaker = Unknown
+voice-radio-panel-listen-header = Listen
+voice-radio-panel-listen-tooltip = Hear voice on { $channel }. Text messages on the channel are not affected.
+voice-radio-panel-talk = Talk on
+voice-radio-panel-talk-default = Default ({ $channel })
+voice-radio-panel-no-channels = No radio channels available

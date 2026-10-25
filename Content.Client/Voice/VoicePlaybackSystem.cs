@@ -45,6 +45,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
     private readonly Dictionary<(VoiceReceiveMode, ushort), VoiceStream> _streams = new();
     private readonly List<(VoiceReceiveMode, ushort)> _toRemove = new();
     private readonly Dictionary<NetEntity, float> _playerVolumes = new();
+    private readonly HashSet<string> _mutedRadioChannels = new();
 
     private bool _enabled;
     private float _localVolume;
@@ -77,6 +78,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceRadioVolume, v => _radioVolume = Math.Clamp(v, 0f, 2f), true);
         Subs.CVar(_cfg, CCVars.VoiceJitterBufferMs, v => _jitterMs = Math.Clamp(v, 20, 400), true);
         Subs.CVar(_cfg, CCVars.VoiceRadioFilter, v => _radioFilter = v, true);
+        Subs.CVar(_cfg, CCVars.VoiceRadioMutedChannels, OnMutedRadioChannelsChanged, true);
 
         _net.Disconnect += OnDisconnect;
     }
@@ -93,6 +95,35 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
     {
         ClearStreams();
     }
+
+    private void OnMutedRadioChannelsChanged(string value)
+    {
+        _mutedRadioChannels.Clear();
+        foreach (var channel in ParseChannelList(value))
+        {
+            _mutedRadioChannels.Add(channel);
+        }
+
+        // Stop anything already playing on a channel that was just muted.
+        foreach (var (key, stream) in _streams)
+        {
+            if (stream.Mode == VoiceReceiveMode.Radio && stream.Channel != null && _mutedRadioChannels.Contains(stream.Channel))
+                _toRemove.Add(key);
+        }
+    }
+
+    /// <summary>
+    /// Parses a comma separated channel list as stored in <see cref="CCVars.VoiceRadioMutedChannels"/>.
+    /// </summary>
+    public static IEnumerable<string> ParseChannelList(string value)
+    {
+        foreach (var part in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            yield return part;
+        }
+    }
+
+    public bool IsRadioChannelMuted(string channel) => _mutedRadioChannels.Contains(channel);
 
     private void OnPlayerVolumeChanged(VoicePlayerVolumeChangedEvent ev)
     {
@@ -122,6 +153,10 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         LastPacket = (msg.Mode, msg.Speaker, msg.Channel, msg.Gain, msg.Muffle);
 
         if (!_enabled)
+            return;
+
+        // The server stops sending muted channels once it knows; this covers the gap.
+        if (msg.Mode == VoiceReceiveMode.Radio && msg.Channel != null && _mutedRadioChannels.Contains(msg.Channel))
             return;
 
         try

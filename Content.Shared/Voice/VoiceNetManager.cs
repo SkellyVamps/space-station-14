@@ -9,7 +9,7 @@ namespace Content.Shared.Voice;
 /// Net messages can't be registered from entity systems: client systems are torn down and re-initialized on every
 /// reconnect and would register twice.
 /// </remarks>
-public sealed class VoiceNetManager
+public sealed partial class VoiceNetManager
 {
     [Dependency] private INetManager _net = default!;
 

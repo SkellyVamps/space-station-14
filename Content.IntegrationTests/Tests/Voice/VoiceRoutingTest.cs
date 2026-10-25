@@ -236,6 +236,25 @@ public sealed class VoiceRoutingTest : GameTest
         Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Radio));
         Assert.That(last.Channel, Is.EqualTo("Common"));
         Assert.That(last.Speaker, Is.EqualTo(NetEntity.Invalid), "radio never reveals the speaking entity");
+
+        // The listener turns off listening to Common in the radio panel: the server stops sending it.
+        await Pair.Client.WaitPost(() =>
+            Pair.Client.EntMan.System<VoiceIndicatorSystem>().SetListening("Common", false));
+        await RunTicksSync(5);
+
+        await Pair.Server.WaitAssertion(() =>
+            Assert.That(Ent.System<VoiceSystem>().IsRadioChannelMuted(_clientSession.UserId, "Common")));
+
+        before = ClientReceived;
+        await Speak(_dummy, radio: true);
+        Assert.That(ClientReceived, Is.EqualTo(before), "muted radio channels aren't sent");
+
+        await Pair.Client.WaitPost(() =>
+            Pair.Client.EntMan.System<VoiceIndicatorSystem>().SetListening("Common", true));
+        await RunTicksSync(5);
+
+        await Speak(_dummy, radio: true);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1));
     }
 
     [Test]

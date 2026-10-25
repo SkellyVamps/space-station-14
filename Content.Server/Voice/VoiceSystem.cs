@@ -67,6 +67,16 @@ public sealed partial class VoiceSystem : EntitySystem
     private EntityQuery<GhostHearingComponent> _ghostHearingQuery;
 
     private readonly Dictionary<ICommonSession, SpeakerState> _speakers = new();
+
+    /// <summary>
+    /// Radio channels each player chose not to hear voice on. Kept per account so it survives body changes.
+    /// </summary>
+    private readonly Dictionary<NetUserId, HashSet<string>> _radioMuted = new();
+
+    /// <summary>
+    /// More than this many muted channels from one client is ignored.
+    /// </summary>
+    private const int MaxRadioMutedChannels = 64;
     private readonly HashSet<ushort> _usedStreamIds = new();
 
     // Scratch collections reused between updates.
@@ -104,6 +114,7 @@ public sealed partial class VoiceSystem : EntitySystem
         _ghostHearingQuery = GetEntityQuery<GhostHearingComponent>();
 
         _voiceNet.TransmitReceived += OnTransmit;
+        SubscribeNetworkEvent<VoiceSetRadioMutedChannelsEvent>(OnSetRadioMuted);
 
         _players.PlayerStatusChanged += OnPlayerStatusChanged;
 
@@ -136,6 +147,42 @@ public sealed partial class VoiceSystem : EntitySystem
 
         if (_speakers.Remove(e.Session, out var state))
             ReleaseState(state);
+
+        _radioMuted.Remove(e.Session.UserId);
+    }
+
+    private void OnSetRadioMuted(VoiceSetRadioMutedChannelsEvent ev, EntitySessionEventArgs args)
+    {
+        SetRadioMutedChannels(args.SenderSession.UserId, ev.Channels);
+    }
+
+    /// <summary>
+    /// Sets the radio channels <paramref name="user"/> doesn't want to hear voice on.
+    /// </summary>
+    public void SetRadioMutedChannels(NetUserId user, IReadOnlyCollection<string>? channels)
+    {
+        if (channels == null || channels.Count == 0 || channels.Count > MaxRadioMutedChannels)
+        {
+            _radioMuted.Remove(user);
+            return;
+        }
+
+        var set = new HashSet<string>();
+        foreach (var channel in channels)
+        {
+            if (!string.IsNullOrEmpty(channel) && channel.Length <= VoiceConstants.MaxWireStringLength)
+                set.Add(channel);
+        }
+
+        if (set.Count == 0)
+            _radioMuted.Remove(user);
+        else
+            _radioMuted[user] = set;
+    }
+
+    public bool IsRadioChannelMuted(NetUserId user, string channel)
+    {
+        return _radioMuted.TryGetValue(user, out var muted) && muted.Contains(channel);
     }
 
     #region Receiving
@@ -380,6 +427,12 @@ public sealed partial class VoiceSystem : EntitySystem
         {
             if (listener.Status != SessionStatus.InGame)
                 continue;
+
+            if (IsRadioChannelMuted(listener.UserId, channel.Id))
+            {
+                Stats.PacketsSuppressed++;
+                continue;
+            }
 
             var volume = _moderation.GetListenerVolume(listener.UserId, session.UserId);
             if (volume <= 0)

@@ -31,6 +31,11 @@
                 <ui:OptionSlider Name="SliderRadioVolume" Title="{Loc 'ui-options-voice-radio-volume'}" />
                 <ui:OptionSlider Name="SliderJitterBuffer" Title="{Loc 'ui-options-voice-jitter-buffer'}" />
                 <CheckBox Name="IndicatorsCheckBox" Text="{Loc 'ui-options-voice-indicators'}" />
+                <BoxContainer Orientation="Horizontal">
+                    <CheckBox Name="RadioPanelCheckBox" Text="{Loc 'ui-options-voice-radio-panel'}" />
+                    <Button Name="RadioPanelResetButton" Text="{Loc 'ui-options-voice-radio-panel-reset'}"
+                            Margin="10 0 0 0" />
+                </BoxContainer>
                 <Label Text="{Loc 'ui-options-voice-mute-hint'}" StyleClasses="LabelSubText" Margin="0 6 0 0" />
             </BoxContainer>
         </ScrollContainer>
