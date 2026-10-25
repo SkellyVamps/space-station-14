@@ -9,6 +9,7 @@ using Content.Shared.Atmos.Components;
 using Content.Shared.Inventory;
 using Content.Shared.Mind;
 using Content.Shared.Players;
+using Content.Shared.Speech.EntitySystems;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
 using Content.Shared.VoiceMask;
@@ -255,6 +256,39 @@ public sealed class VoiceRoutingTest : GameTest
 
         await Speak(_dummy, radio: true);
         Assert.That(ClientReceived, Is.EqualTo(before + 1));
+    }
+
+    [Test]
+    public async Task CreaturesThatCantTalkAreNotTransmitted()
+    {
+        await Setup();
+
+        var before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "a person is heard");
+
+        // Text speech fully replaced by "Squeak!": nobody can understand them, so no audio is sent at all.
+        await Pair.Server.WaitPost(() => Ent.System<ReplacementAccentSystem>().ApplyAccent(_speaker, "mouse"));
+
+        var replaced = Ent.System<VoiceSystem>().Stats.PacketsReplaced;
+        before = ClientReceived;
+        await Speak(_dummy);
+        await Speak(_dummy, radio: true);
+        Assert.That(ClientReceived, Is.EqualTo(before), "a creature's voice never reaches anyone");
+        Assert.That(Ent.System<VoiceSystem>().Stats.PacketsReplaced, Is.EqualTo(replaced + 2));
+
+        // Word replacements (pirate...) are still understandable.
+        await Pair.Server.WaitPost(() => Ent.System<ReplacementAccentSystem>().ApplyAccent(_speaker, "pirate"));
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1));
+
+        // An actual hamster.
+        await Pair.Server.WaitAssertion(() =>
+        {
+            var hamster = Ent.SpawnEntity("MobHamster", MapCoordinates.Nullspace);
+            Assert.That(Ent.System<VoiceCreatureSystem>().IsUnintelligible(hamster));
+            Ent.DeleteEntity(hamster);
+        });
     }
 
     [Test]

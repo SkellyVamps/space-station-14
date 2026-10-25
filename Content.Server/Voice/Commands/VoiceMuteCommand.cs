@@ -136,6 +136,7 @@ public sealed partial class VoiceStatsCommand : LocalizedEntityCommands
         shell.WriteLine($"Active speakers: {_voice.ActiveSpeakers}");
         shell.WriteLine($"Packets: received {s.PacketsReceived}, rejected {s.PacketsRejected}, muted {s.PacketsMuted}, sent {s.PacketsSent} ({s.BytesSent / 1024} KiB)");
         shell.WriteLine($"Recipient updates: {s.RecipientUpdates}, avg {avgRecipientUs:0.0} us; streams capped {s.StreamsCapped}");
+        shell.WriteLine($"Creature frames replaced by noises: {s.PacketsReplaced}");
         shell.WriteLine($"Acoustic fields: computed {_audibility.FieldsComputed} (avg {avgFieldUs:0.0} us), cache hits {_audibility.FieldCacheHits}");
     }
 }

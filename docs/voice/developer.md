@@ -16,7 +16,7 @@ The system is split into layers that only talk to their neighbours, so each can 
 | GAMEPLAY | Character/species/equipment/disguise/impersonation -> speaker state | `VoiceProfileSystem`, `VoiceModifierSystem`, `VoiceImpersonationSystem` |
 | PLAYBACK | Jitter buffer, decode, receive DSP, positional sources | `Content.Client/Voice/VoicePlaybackSystem.cs`, `VoiceJitterBuffer.cs` |
 | MODERATION | Admin mutes, personal mute/volume, logs | `VoiceModerationSystem`, `Commands/` |
-| UI | Options tab, character editor, indicators | `Content.Client/Options/UI/Tabs/VoiceTab.*`, `Lobby/UI/HumanoidProfileEditor.CharacterVoice.cs`, `VoiceIndicator*` |
+| UI | Options tab, character editor, indicators, radio panel | `Content.Client/Options/UI/Tabs/VoiceTab.*`, `Lobby/UI/HumanoidProfileEditor.CharacterVoice.cs`, `VoiceIndicator*`, `VoiceRadioPanel.cs` |
 
 ## Packet flow
 
@@ -215,3 +215,11 @@ hear muffled (configurable); sleepers hear muffled.
 
 Manual multi-client testing: `runserver`, then two `runclient` instances (`--username a`, `--username b`). Mic test
 in Options -> Voice works without a server.
+
+## Creatures that can't talk
+
+`VoiceCreatureSystem` raises `VoiceIntelligibilityEvent` on a speaker for every frame. If anything sets
+`Unintelligible`, the frame is dropped and the creature's `SpeechComponent` speech sound plays now and then instead.
+Built in: a `ReplacementAccent` whose prototype has `fullReplacements`, `MonkeyAccent`, and the explicit
+`VoiceUnintelligible` component for anything else. Subscribe to the event to add your own rules (a language system,
+for example).

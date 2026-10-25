@@ -208,6 +208,19 @@ public sealed partial class CCVars
         CVarDef.Create("voice.radio_local_gain", 0.6f, CVar.SERVER);
 
     /// <summary>
+    ///     Seconds of talking before a creature that can't speak (hamster, dog...) makes its first noise. Their voice
+    ///     itself is never transmitted.
+    /// </summary>
+    public static readonly CVarDef<float> VoiceCreatureNoiseDelay =
+        CVarDef.Create("voice.creature_noise_delay", 0.4f, CVar.SERVER);
+
+    /// <summary>
+    ///     Average seconds between a creature's noises while it keeps talking.
+    /// </summary>
+    public static readonly CVarDef<float> VoiceCreatureNoiseInterval =
+        CVarDef.Create("voice.creature_noise_interval", 1.5f, CVar.SERVER);
+
+    /// <summary>
     ///     Maximum pitch offset (semitones) a character voice profile may use.
     /// </summary>
     public static readonly CVarDef<float> VoiceProfileMaxPitch =

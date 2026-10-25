@@ -107,6 +107,8 @@ All CVars are in `Content.Shared/CCVar/CCVars.Voice.cs`. Server ones (put them i
 | `voice.living_hear_ghosts` | `false` | Living hear ghosts (spooky event option) |
 | `voice.sleeping_muffle` | `0.7` | How muffled sleepers hear things (1 = they hear nothing) |
 | `voice.crit_can_hear` | `true` | Critical players hear (heavily muffled) |
+| `voice.creature_noise_delay` | `0.4` | Seconds of talking before a creature that can't speak makes its first noise |
+| `voice.creature_noise_interval` | `1.5` | Average seconds between its noises while it keeps talking |
 | `voice.profile_max_pitch` / `_formant` | `6` / `4` | Limits (semitones) for character voices |
 | `voice.bitrate` | `24000` | Opus bitrate clients use |
 | `voice.frame_ms` | `20` | Frame size: 10, 20, 40 or 60 |

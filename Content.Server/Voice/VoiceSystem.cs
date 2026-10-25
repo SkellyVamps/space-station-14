@@ -50,6 +50,7 @@ public sealed partial class VoiceSystem : EntitySystem
     [Dependency] private VoiceAudibilitySystem _audibility = default!;
     [Dependency] private VoiceRadioSystem _radio = default!;
     [Dependency] private VoiceModerationSystem _moderation = default!;
+    [Dependency] private VoiceCreatureSystem _creature = default!;
     [Dependency] private SharedTransformSystem _xform = default!;
 
     /// <summary>
@@ -227,6 +228,14 @@ public sealed partial class VoiceSystem : EntitySystem
         if (!_speakerQuery.TryComp(speaker, out var speakerComp) || !speakerComp.CanSpeak)
         {
             Stats.PacketsRejected++;
+            return;
+        }
+
+        // Hamsters, dogs, zombies...: nobody understands them, so nobody gets their audio, just their usual noise.
+        if (!speakerComp.Ghost && _creature.IsUnintelligible(speaker))
+        {
+            Stats.PacketsReplaced++;
+            _creature.OnSpeech(speaker, (msg.Flags & VoiceTransmitFlags.EndOfSpurt) != 0);
             return;
         }
 
@@ -791,5 +800,10 @@ public struct VoiceStats
     public TimeSpan RecipientTime;
     public long StreamsCapped;
     public long PacketsSuppressed;
+
+    /// <summary>
+    /// Frames from creatures nobody can understand, replaced by their speech sound.
+    /// </summary>
+    public long PacketsReplaced;
     public long SendFailures;
 }

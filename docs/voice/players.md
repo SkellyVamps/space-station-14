@@ -21,12 +21,29 @@ time without restarting.
 * **Voice activation**: switch *Mode* in Options -> Voice. You transmit whenever you're louder than the threshold.
   Raise the threshold if background noise keeps triggering it.
 * While you type in chat or any text box, push to talk is ignored.
-* A green ring above a character means they're talking; yours turns gold when you're on the radio.
-* Radio transmissions you can hear are listed at the top right with their channel.
-* Choose which radio channel the radio key uses with the console command `voiceradio <channel>` (e.g.
-  `voiceradio Engineering`); `voiceradio` alone resets to your headset's default.
+* A green ring above a character means they're talking; yours turns gold when you're on the radio. The ring only
+  shows for people you can actually see: someone talking behind a wall or inside a locker is heard, but not marked.
 
 Talking into your radio is also heard, a little more quietly, by people near you.
+
+## Radio panel
+
+When you have a headset, a small **Radio** panel shows who is talking on the radio and on which channel.
+
+* **Drag** it anywhere on the screen; it stays where you put it. Options -> Voice can hide it or reset its position.
+* Press **+** to open its settings:
+  * **Talk on** picks the channel the radio key transmits on (or your headset's default).
+  * **Listen** lists your channels, the same ones you have in text chat. Untick a channel to stop hearing voice on it.
+    Text messages on that channel still show in chat.
+
+The console command `voiceradio <channel>` also picks the talk channel.
+
+## Animals and other creatures that can't talk
+
+If your character can't speak (a hamster, mouse, dog, monkey, zombie...), nobody hears your microphone. When you talk,
+your character makes its usual noise every second or so instead. Whatever can't be understood in text chat ("Squeak!")
+can't be understood in voice either. You still hear everyone else normally, and a creature made sentient regains
+its voice.
 
 ## Your character's voice
 

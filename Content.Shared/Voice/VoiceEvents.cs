@@ -132,3 +132,10 @@ public sealed class VoiceSetRadioMutedChannelsEvent(List<string> channels) : Ent
 {
     public List<string> Channels = channels;
 }
+
+/// <summary>
+/// Raised on a speaker to find out whether anyone can understand what they say. When not, their voice is never sent
+/// to anyone and their creature's speech sound plays instead, matching what text chat does with them.
+/// </summary>
+[ByRefEvent]
+public record struct VoiceIntelligibilityEvent(bool Unintelligible = false);
