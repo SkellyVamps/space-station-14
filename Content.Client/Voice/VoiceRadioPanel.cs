@@ -41,6 +41,7 @@ public sealed class VoiceRadioPanel : Control
     private readonly Dictionary<string, CheckBox> _listenBoxes = new();
     private ProtoId<RadioChannelPrototype>? _shownDefault;
     private bool _updatingTalk;
+    private bool _talkBuilt;
 
     /// <summary>
     /// The player dropped the panel somewhere new.
@@ -229,7 +230,7 @@ public sealed class VoiceRadioPanel : Control
         if (!ListEquals(_shownListen, listen))
             RebuildListen(listen);
 
-        if (!ListEquals(_shownChannels, talk) || _shownDefault != defaultChannel)
+        if (!_talkBuilt || !ListEquals(_shownChannels, talk) || _shownDefault != defaultChannel)
             RebuildTalk(talk, defaultChannel);
 
         foreach (var (channel, box) in _listenBoxes)
@@ -237,10 +238,15 @@ public sealed class VoiceRadioPanel : Control
             box.Pressed = !isMuted(channel);
         }
 
-        _updatingTalk = true;
+        // A channel picked on an earlier body may not exist on this one: fall back to the default.
         var index = selected is { } sel ? talk.IndexOf(sel) : -1;
-        _talk.SelectId(index + 1);
-        _updatingTalk = false;
+        var id = index + 1;
+        if (_talk.SelectedId != id)
+        {
+            _updatingTalk = true;
+            _talk.TrySelectId(id);
+            _updatingTalk = false;
+        }
     }
 
     private void RebuildListen(List<ProtoId<RadioChannelPrototype>> channels)
@@ -280,8 +286,19 @@ public sealed class VoiceRadioPanel : Control
         _shownChannels.Clear();
         _shownChannels.AddRange(channels);
         _shownDefault = defaultChannel;
+        _talkBuilt = true;
 
         _talk.Clear();
+
+        // Nothing to talk into (no headset, observers): say so instead of showing an empty selector.
+        if (channels.Count == 0)
+        {
+            _talk.AddItem(Loc.GetString("voice-radio-panel-talk-none"), 0);
+            _talk.Disabled = true;
+            return;
+        }
+
+        _talk.Disabled = false;
 
         var defaultName = defaultChannel is { } def ? GetChannel(def.Id).Name : "-";
         _talk.AddItem(Loc.GetString("voice-radio-panel-talk-default", ("channel", defaultName)), 0);
@@ -290,14 +307,11 @@ public sealed class VoiceRadioPanel : Control
         {
             _talk.AddItem(GetChannel(channels[i].Id).Name, i + 1);
         }
-
-        // Observers and creatures without a radio can listen but not talk.
-        _talkRow.Visible = channels.Count > 0;
     }
 
     private void OnTalkSelected(OptionButton.ItemSelectedEventArgs args)
     {
-        _talk.SelectId(args.Id);
+        _talk.TrySelectId(args.Id);
         if (_updatingTalk)
             return;
 

@@ -113,4 +113,9 @@ voice-radio-panel-listen-header = Listen
 voice-radio-panel-listen-tooltip = Hear voice on { $channel }. Text messages on the channel are not affected.
 voice-radio-panel-talk = Talk on
 voice-radio-panel-talk-default = Default ({ $channel })
+voice-radio-panel-talk-none = None (no radio)
 voice-radio-panel-no-channels = No radio channels available
+
+## Top menu bar
+
+game-hud-open-voice-radio-panel-button-tooltip = Show or hide the radio panel (who is talking on the radio, which channels you hear and talk on).
