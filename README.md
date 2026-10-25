@@ -2,9 +2,9 @@
 <img alt="Space Station 14" width="880" height="300" src="https://raw.githubusercontent.com/space-wizards/asset-dump/de329a7898bb716b9d5ba9a0cd07f38e61f1ed05/github-logo.svg">  
 </div>
 
-# Space Station 14, Echos of the Void
+# Space Station 14, Echoes of the Void
 
-This is **Echos of the Void**, a fork of Space Station 14 with built-in proximity voice chat. Players join with the
+This is **Echoes of the Void**, a fork of Space Station 14 with built-in proximity voice chat. Players join with the
 fork's own launcher; see [docs/voice](docs/voice/README.md) for how voice chat works and how to run a server.
 
 The rest of this README is from upstream Space Station 14.
