@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using Content.Shared.CCVar;
+using Content.Shared.Input;
 using Content.Shared.Radio;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
@@ -11,6 +12,7 @@ using Robust.Client.UserInterface.Controls;
 using Robust.Shared.Configuration;
 using Robust.Shared.Network;
 using Robust.Shared.Enums;
+using Robust.Shared.Input.Binding;
 using Robust.Shared.Player;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
@@ -52,6 +54,10 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
 
         SubscribeLocalEvent<LocalPlayerAttachedEvent>(OnLocalPlayerAttached);
 
+        CommandBinds.Builder
+            .Bind(ContentKeyFunctions.VoiceToggleRadioPanel, InputCmdHandler.FromDelegate(_ => ToggleRadioPanel()))
+            .Register<VoiceIndicatorSystem>();
+
         Subs.CVar(_cfg, CCVars.VoiceShowIndicators, SetOverlayEnabled, true);
         Subs.CVar(_cfg, CCVars.VoiceShowRadioPanel, v => _showPanel = v, true);
         Subs.CVar(_cfg, CCVars.VoiceClientEnabled, v => _clientEnabled = v, true);
@@ -65,6 +71,7 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
     public override void Shutdown()
     {
         base.Shutdown();
+        CommandBinds.Unregister<VoiceIndicatorSystem>();
         SetOverlayEnabled(false);
 
         if (_panel != null)
@@ -137,22 +144,24 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
 
     #region Radio panel
 
+    /// <summary>
+    /// Shows or hides the radio panel (its keybind, F4 by default). Remembered between sessions.
+    /// </summary>
+    public void ToggleRadioPanel()
+    {
+        _cfg.SetCVar(CCVars.VoiceShowRadioPanel, !_cfg.GetCVar(CCVars.VoiceShowRadioPanel));
+        _cfg.SaveToFile();
+    }
+
     public override void FrameUpdate(float frameTime)
     {
         base.FrameUpdate(frameTime);
 
         _radioSpeakers.Clear();
 
-        VoiceSpeakerComponent? speaker = null;
+        // Always available in game, whether or not you have a radio right now; the player hides it with its key.
         var show = _showPanel && _clientEnabled && _serverEnabled && _radioEnabled
                    && _player.LocalEntity != null;
-
-        if (show)
-        {
-            TryComp(_player.LocalEntity, out speaker);
-            _playback.GetRadioSpeakers(_radioSpeakers);
-            show = speaker is { RadioChannels.Count: > 0 } || _radioSpeakers.Count > 0;
-        }
 
         if (!show)
         {
@@ -171,9 +180,12 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
             PlacePanel();
         }
 
+        TryComp(_player.LocalEntity, out VoiceSpeakerComponent? speaker);
+        _playback.GetRadioSpeakers(_radioSpeakers);
+
         _panel.UpdateSpeakers(_radioSpeakers);
-        _panel.UpdateChannels(speaker?.RadioChannels ?? _noChannels, speaker?.DefaultRadioChannel,
-            _transmit.SelectedRadioChannel, c => !IsListening(c));
+        _panel.UpdateChannels(speaker?.ListenChannels ?? _noChannels, speaker?.RadioChannels ?? _noChannels,
+            speaker?.DefaultRadioChannel, _transmit.SelectedRadioChannel, c => !IsListening(c));
     }
 
     private void CreatePanel()

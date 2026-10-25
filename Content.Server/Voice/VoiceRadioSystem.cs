@@ -79,6 +79,49 @@ public sealed partial class VoiceRadioSystem : EntitySystem
     }
 
     /// <summary>
+    /// Collects the channels <paramref name="listener"/> can hear voice on: its own receivers (observers hear
+    /// everything) and its headset's.
+    /// </summary>
+    public void GetReceiveChannels(EntityUid listener, List<ProtoId<RadioChannelPrototype>> channels)
+    {
+        channels.Clear();
+
+        if (TryComp(listener, out ActiveRadioComponent? own))
+            AddReceiverChannels(own, channels);
+
+        if (_wearingQuery.TryComp(listener, out var wearing)
+            && _headsetQuery.TryComp(wearing.Headset, out var headset)
+            && headset.Enabled
+            && headset.IsEquipped
+            && TryComp(wearing.Headset, out ActiveRadioComponent? headsetRadio))
+        {
+            AddReceiverChannels(headsetRadio, channels);
+        }
+
+        channels.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+    }
+
+    private void AddReceiverChannels(ActiveRadioComponent radio, List<ProtoId<RadioChannelPrototype>> channels)
+    {
+        if (radio.ReceiveAllChannels)
+        {
+            foreach (var channel in _proto.EnumeratePrototypes<RadioChannelPrototype>())
+            {
+                if (!channels.Contains(channel.ID))
+                    channels.Add(channel.ID);
+            }
+
+            return;
+        }
+
+        foreach (var channel in radio.Channels)
+        {
+            if (!channels.Contains(channel))
+                channels.Add(channel);
+        }
+    }
+
+    /// <summary>
     /// Resolves the entity actually transmitting <paramref name="channel"/> for <paramref name="speaker"/>.
     /// </summary>
     public bool TryGetTransmitter(EntityUid speaker, ProtoId<RadioChannelPrototype> channel, out EntityUid radioSource)

@@ -28,13 +28,17 @@ Talking into your radio is also heard, a little more quietly, by people near you
 
 ## Radio panel
 
-When you have a headset, a small **Radio** panel shows who is talking on the radio and on which channel.
+A small **Radio** panel shows who is talking on the radio and on which channel. It's there whenever you're in game,
+including as an observer.
 
-* **Drag** it anywhere on the screen; it stays where you put it. Options -> Voice can hide it or reset its position.
+* **F4** shows or hides it (change the key in Options -> Controls, "Voice: show/hide radio panel").
+* **Drag** it anywhere on the screen; it stays where you put it. Options -> Voice can also hide it or reset its
+  position.
 * Press **+** to open its settings:
-  * **Talk on** picks the channel the radio key transmits on (or your headset's default).
-  * **Listen** lists your channels, the same ones you have in text chat. Untick a channel to stop hearing voice on it.
-    Text messages on that channel still show in chat.
+  * **Talk on** picks the channel the radio key transmits on (or your headset's default). It only shows when you
+    have a radio you can talk into.
+  * **Listen** lists the channels you can hear, the same ones you have in text chat (every channel as an observer).
+    Untick a channel to stop hearing voice on it. Text messages on that channel still show in chat.
 
 The console command `voiceradio <channel>` also picks the talk channel.
 

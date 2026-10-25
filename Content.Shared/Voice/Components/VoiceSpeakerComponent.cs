@@ -44,6 +44,13 @@ public sealed partial class VoiceSpeakerComponent : Component
     public List<ProtoId<RadioChannelPrototype>> RadioChannels = new();
 
     /// <summary>
+    /// Radio channels the entity can currently hear (headset, intrinsic receivers; every channel for observers).
+    /// Shown in the radio panel so the player can choose which ones to listen to.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public List<ProtoId<RadioChannelPrototype>> ListenChannels = new();
+
+    /// <summary>
     /// Channel used by the radio push-to-talk key when the player hasn't picked one.
     /// </summary>
     [DataField, AutoNetworkedField]

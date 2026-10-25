@@ -43,6 +43,7 @@ public sealed partial class VoiceProfileSystem : EntitySystem
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(0.5);
 
     private readonly List<ProtoId<RadioChannelPrototype>> _channels = new();
+    private readonly List<ProtoId<RadioChannelPrototype>> _listenChannels = new();
     private readonly List<ProtoId<VoiceFilterPrototype>> _filters = new();
     private TimeSpan _nextRefresh;
     private bool _ghostVoice;
@@ -196,13 +197,24 @@ public sealed partial class VoiceProfileSystem : EntitySystem
         if (!ghost)
             _radio.GetTransmitChannels(uid, _channels, out defaultChannel);
 
+        _listenChannels.Clear();
+        _radio.GetReceiveChannels(uid, _listenChannels);
+        foreach (var channel in _channels)
+        {
+            if (!_listenChannels.Contains(channel))
+                _listenChannels.Add(channel);
+        }
+
+        _listenChannels.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+
         var changed = force
                       || comp.Ghost != ghost
                       || comp.CanSpeak != canSpeak
                       || comp.Profile != profile
                       || comp.DefaultRadioChannel != defaultChannel
                       || !SequenceEqual(comp.Filters, filters)
-                      || !SequenceEqual(comp.RadioChannels, _channels);
+                      || !SequenceEqual(comp.RadioChannels, _channels)
+                      || !SequenceEqual(comp.ListenChannels, _listenChannels);
 
         if (!changed)
             return;
@@ -212,6 +224,7 @@ public sealed partial class VoiceProfileSystem : EntitySystem
         comp.Profile = profile;
         comp.Filters = filters;
         comp.RadioChannels = new List<ProtoId<RadioChannelPrototype>>(_channels);
+        comp.ListenChannels = new List<ProtoId<RadioChannelPrototype>>(_listenChannels);
         comp.DefaultRadioChannel = defaultChannel;
         Dirty(uid, comp);
     }

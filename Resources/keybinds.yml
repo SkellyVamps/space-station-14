@@ -122,6 +122,9 @@ binds:
 - function: VoiceRadioPushToTalk
   type: State
   key: M
+- function: VoiceToggleRadioPanel
+  type: State
+  key: F4
 - function: FocusLOOCWindow
   type: State
   mod1: Shift

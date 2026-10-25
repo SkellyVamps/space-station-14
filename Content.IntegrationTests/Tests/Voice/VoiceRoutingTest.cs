@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Content.Client.Voice;
@@ -9,6 +10,7 @@ using Content.Shared.Atmos.Components;
 using Content.Shared.Inventory;
 using Content.Shared.Mind;
 using Content.Shared.Players;
+using Content.Shared.Radio;
 using Content.Shared.Speech.EntitySystems;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
@@ -20,6 +22,7 @@ using Robust.Shared.Map.Components;
 using Robust.Shared.Maths;
 using Robust.Shared.Network;
 using Robust.Shared.Player;
+using Robust.Shared.Prototypes;
 
 namespace Content.IntegrationTests.Tests.Voice;
 
@@ -237,6 +240,19 @@ public sealed class VoiceRoutingTest : GameTest
         Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Radio));
         Assert.That(last.Channel, Is.EqualTo("Common"));
         Assert.That(last.Speaker, Is.EqualTo(NetEntity.Invalid), "radio never reveals the speaking entity");
+
+        // The radio panel lists what each player can hear: their channels, or everything for an observer.
+        await Pair.Server.WaitAssertion(() =>
+        {
+            Assert.That(Ent.GetComponent<VoiceSpeakerComponent>(_listener).ListenChannels.Select(c => c.Id),
+                Does.Contain("Common"));
+
+            var observer = Ent.SpawnEntity("MobObserver", MapCoordinates.Nullspace);
+            var channels = new List<ProtoId<RadioChannelPrototype>>();
+            Ent.System<VoiceRadioSystem>().GetReceiveChannels(observer, channels);
+            Assert.That(channels, Has.Count.EqualTo(Pair.Server.ProtoMan.EnumeratePrototypes<RadioChannelPrototype>().Count()));
+            Ent.DeleteEntity(observer);
+        });
 
         // The listener turns off listening to Common in the radio panel: the server stops sending it.
         await Pair.Client.WaitPost(() =>

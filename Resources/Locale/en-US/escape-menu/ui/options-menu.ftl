@@ -200,6 +200,7 @@ ui-options-function-focus-whisper-chat-window = Focus chat (Whisper)
 ui-options-function-focus-radio-window = Focus chat (Radio)
 ui-options-function-voice-push-to-talk = Voice: push to talk
 ui-options-function-voice-radio-push-to-talk = Voice: push to talk (radio)
+ui-options-function-voice-toggle-radio-panel = Voice: show/hide radio panel
 ui-options-function-focus-looc-window = Focus chat (LOOC)
 ui-options-function-focus-ooc-window = Focus chat (OOC)
 ui-options-function-focus-admin-chat-window = Focus chat (Admin)

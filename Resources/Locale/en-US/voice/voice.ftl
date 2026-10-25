@@ -105,7 +105,7 @@ cmd-voiceradio-hint = <channel>
 ## Radio panel
 
 voice-radio-panel-title = Radio
-voice-radio-panel-settings-tooltip = Choose which channels you hear and talk on. Drag the panel to move it.
+voice-radio-panel-settings-tooltip = Choose which channels you hear and talk on. Drag the panel to move it; F4 hides it.
 voice-radio-panel-nobody = Nobody is talking
 voice-radio-panel-speaker = [{ $channel }] { $name }
 voice-radio-panel-unknown-speaker = Unknown

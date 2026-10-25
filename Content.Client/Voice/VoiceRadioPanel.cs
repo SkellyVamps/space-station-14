@@ -21,6 +21,7 @@ namespace Content.Client.Voice;
 public sealed class VoiceRadioPanel : Control
 {
     private const float PanelWidth = 230f;
+    private const float MaxListenHeight = 220f;
 
     private readonly IPrototypeManager _proto;
 
@@ -29,11 +30,14 @@ public sealed class VoiceRadioPanel : Control
     private readonly BoxContainer _settings;
     private readonly BoxContainer _channelRows;
     private readonly OptionButton _talk;
+    private readonly BoxContainer _talkRow;
+    private readonly ScrollContainer _listenScroll;
     private readonly Label _noChannels;
     private readonly Button _expand;
 
     private readonly List<(string Channel, string Name)> _shownSpeakers = new();
     private readonly List<ProtoId<RadioChannelPrototype>> _shownChannels = new();
+    private readonly List<ProtoId<RadioChannelPrototype>> _shownListen = new();
     private readonly Dictionary<string, CheckBox> _listenBoxes = new();
     private ProtoId<RadioChannelPrototype>? _shownDefault;
     private bool _updatingTalk;
@@ -109,7 +113,30 @@ public sealed class VoiceRadioPanel : Control
         _talk = new OptionButton { HorizontalExpand = true };
         _talk.OnItemSelected += OnTalkSelected;
 
+        _talkRow = new BoxContainer
+        {
+            Orientation = BoxContainer.LayoutOrientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 4),
+            Children =
+            {
+                new Label
+                {
+                    Text = Loc.GetString("voice-radio-panel-talk"),
+                    Margin = new Thickness(0, 0, 6, 0),
+                },
+                _talk,
+            },
+        };
+
         _channelRows = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
+
+        // Observers hear every channel: scroll rather than growing off screen. A scroll container doesn't size itself
+        // to its contents, so its height is set whenever the channel list changes.
+        _listenScroll = new ScrollContainer
+        {
+            HScrollEnabled = false,
+            Children = { _channelRows },
+        };
 
         _noChannels = new Label
         {
@@ -123,26 +150,14 @@ public sealed class VoiceRadioPanel : Control
             Margin = new Thickness(0, 4, 0, 0),
             Children =
             {
-                new BoxContainer
-                {
-                    Orientation = BoxContainer.LayoutOrientation.Horizontal,
-                    Children =
-                    {
-                        new Label
-                        {
-                            Text = Loc.GetString("voice-radio-panel-talk"),
-                            Margin = new Thickness(0, 0, 6, 0),
-                        },
-                        _talk,
-                    },
-                },
+                _talkRow,
                 new Label
                 {
                     Text = Loc.GetString("voice-radio-panel-listen-header"),
                     StyleClasses = { StyleClass.LabelSubText },
-                    Margin = new Thickness(0, 4, 0, 0),
                 },
-                _channelRows,
+                // Observers hear every channel: keep the panel a sensible size.
+                _listenScroll,
                 _noChannels,
             },
         };
@@ -203,15 +218,19 @@ public sealed class VoiceRadioPanel : Control
     }
 
     /// <summary>
-    /// Shows the channels the player has (the same ones they can use in text chat) and their settings.
+    /// Shows the channels the player can hear and talk on (the same ones they have in text chat) and their settings.
     /// </summary>
-    public void UpdateChannels(List<ProtoId<RadioChannelPrototype>> channels,
+    public void UpdateChannels(List<ProtoId<RadioChannelPrototype>> listen,
+        List<ProtoId<RadioChannelPrototype>> talk,
         ProtoId<RadioChannelPrototype>? defaultChannel,
         ProtoId<RadioChannelPrototype>? selected,
         Func<string, bool> isMuted)
     {
-        if (!ListEquals(_shownChannels, channels) || _shownDefault != defaultChannel)
-            RebuildChannels(channels, defaultChannel);
+        if (!ListEquals(_shownListen, listen))
+            RebuildListen(listen);
+
+        if (!ListEquals(_shownChannels, talk) || _shownDefault != defaultChannel)
+            RebuildTalk(talk, defaultChannel);
 
         foreach (var (channel, box) in _listenBoxes)
         {
@@ -219,30 +238,23 @@ public sealed class VoiceRadioPanel : Control
         }
 
         _updatingTalk = true;
-        var index = selected is { } sel ? channels.IndexOf(sel) : -1;
+        var index = selected is { } sel ? talk.IndexOf(sel) : -1;
         _talk.SelectId(index + 1);
         _updatingTalk = false;
     }
 
-    private void RebuildChannels(List<ProtoId<RadioChannelPrototype>> channels,
-        ProtoId<RadioChannelPrototype>? defaultChannel)
+    private void RebuildListen(List<ProtoId<RadioChannelPrototype>> channels)
     {
-        _shownChannels.Clear();
-        _shownChannels.AddRange(channels);
-        _shownDefault = defaultChannel;
+        _shownListen.Clear();
+        _shownListen.AddRange(channels);
 
         _channelRows.RemoveAllChildren();
         _listenBoxes.Clear();
-        _talk.Clear();
 
-        var defaultName = defaultChannel is { } def ? GetChannel(def.Id).Name : "-";
-        _talk.AddItem(Loc.GetString("voice-radio-panel-talk-default", ("channel", defaultName)), 0);
-
-        for (var i = 0; i < channels.Count; i++)
+        foreach (var protoId in channels)
         {
-            var channel = channels[i].Id;
+            var channel = protoId.Id;
             var (name, color) = GetChannel(channel);
-            _talk.AddItem(name, i + 1);
 
             var box = new CheckBox
             {
@@ -256,8 +268,31 @@ public sealed class VoiceRadioPanel : Control
             _channelRows.AddChild(box);
         }
 
-        _talk.Disabled = channels.Count == 0;
         _noChannels.Visible = channels.Count == 0;
+
+        _channelRows.Measure(new Vector2(PanelWidth, float.PositiveInfinity));
+        _listenScroll.MinHeight = Math.Min(MaxListenHeight, _channelRows.DesiredSize.Y);
+    }
+
+    private void RebuildTalk(List<ProtoId<RadioChannelPrototype>> channels,
+        ProtoId<RadioChannelPrototype>? defaultChannel)
+    {
+        _shownChannels.Clear();
+        _shownChannels.AddRange(channels);
+        _shownDefault = defaultChannel;
+
+        _talk.Clear();
+
+        var defaultName = defaultChannel is { } def ? GetChannel(def.Id).Name : "-";
+        _talk.AddItem(Loc.GetString("voice-radio-panel-talk-default", ("channel", defaultName)), 0);
+
+        for (var i = 0; i < channels.Count; i++)
+        {
+            _talk.AddItem(GetChannel(channels[i].Id).Name, i + 1);
+        }
+
+        // Observers and creatures without a radio can listen but not talk.
+        _talkRow.Visible = channels.Count > 0;
     }
 
     private void OnTalkSelected(OptionButton.ItemSelectedEventArgs args)
