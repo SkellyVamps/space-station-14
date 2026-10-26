@@ -1,10 +1,13 @@
+using System.Numerics;
 using Content.Server.Administration.Logs;
 using Content.Shared.CCVar;
 using Content.Shared.Chat;
 using Content.Shared.Database;
 using Content.Shared.Ghost;
 using Content.Shared.Ghost.Components;
+using Content.Shared.Interaction;
 using Content.Shared.Radio;
+using Content.Shared.Radio.Components;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
 using Robust.Server.Player;
@@ -52,6 +55,7 @@ public sealed partial class VoiceSystem : EntitySystem
     [Dependency] private VoiceModerationSystem _moderation = default!;
     [Dependency] private VoiceCreatureSystem _creature = default!;
     [Dependency] private SharedTransformSystem _xform = default!;
+    [Dependency] private SharedInteractionSystem _interaction = default!;
 
     /// <summary>
     /// How long after its last packet a speaker keeps getting its recipients refreshed.
@@ -62,6 +66,16 @@ public sealed partial class VoiceSystem : EntitySystem
     /// How often radio recipients re-receive the speaker's display name.
     /// </summary>
     private static readonly TimeSpan NameInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// A radio microphone route nobody has spoken into for this long is dropped.
+    /// </summary>
+    private static readonly TimeSpan MicrophoneRouteTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Largest microphone listen range considered when looking for microphones around a speaker.
+    /// </summary>
+    private const float MaxMicrophoneSearchRange = 8f;
 
     private EntityQuery<VoiceSpeakerComponent> _speakerQuery;
     private EntityQuery<GhostComponent> _ghostQuery;
@@ -85,6 +99,12 @@ public sealed partial class VoiceSystem : EntitySystem
     private readonly Dictionary<EntityUid, VoiceHearingEvent> _hearingCache = new();
     private readonly Dictionary<ICommonSession, List<(SpeakerState Speaker, int Index)>> _listenerLoad = new();
     private readonly MsgVoiceReceive _outgoing = new();
+    private readonly List<EntityUid> _loudspeakerScratch = new();
+    private readonly List<EntityUid> _expiredDevices = new();
+    private readonly List<Entity<RadioMicrophoneComponent>> _microphoneScratch = new();
+    private readonly List<(Entity<RadioMicrophoneComponent> Mic, float Gain)> _microphoneCandidates = new();
+    private readonly HashSet<ProtoId<RadioChannelPrototype>> _microphoneChannels = new();
+    private readonly List<EntityUid> _expiredMicrophones = new();
 
     private bool _enabled;
     private bool _radioEnabled;
@@ -95,6 +115,8 @@ public sealed partial class VoiceSystem : EntitySystem
     private int _maxStreams;
     private float _minGain;
     private float _radioLocalGain;
+    private float _loudspeakerGain;
+    private bool _radioMicrophones;
     private bool _ghostsHearLiving;
     private bool _ghostVoice;
     private bool _livingHearGhosts;
@@ -128,6 +150,8 @@ public sealed partial class VoiceSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceMaxStreamsPerListener, v => _maxStreams = v, true);
         Subs.CVar(_cfg, CCVars.VoiceMinAudibleGain, v => _minGain = v, true);
         Subs.CVar(_cfg, CCVars.VoiceRadioLocalGain, v => _radioLocalGain = v, true);
+        Subs.CVar(_cfg, CCVars.VoiceLoudspeakerGain, v => _loudspeakerGain = Math.Max(0f, v), true);
+        Subs.CVar(_cfg, CCVars.VoiceRadioMicrophones, v => _radioMicrophones = v, true);
         Subs.CVar(_cfg, CCVars.VoiceGhostsHearLiving, v => _ghostsHearLiving = v, true);
         Subs.CVar(_cfg, CCVars.VoiceGhostVoice, v => _ghostVoice = v, true);
         Subs.CVar(_cfg, CCVars.VoiceLivingHearGhosts, v => _livingHearGhosts = v, true);
@@ -250,12 +274,7 @@ public sealed partial class VoiceSystem : EntitySystem
             state.RecipientsComputed = TimeSpan.Zero;
 
             // New body, new radio stream ids, so the old and new body can't be linked by stream id.
-            foreach (var route in state.Radio.Values)
-            {
-                _usedStreamIds.Remove(route.StreamId);
-            }
-
-            state.Radio.Clear();
+            ReleaseRoutes(state);
         }
 
         state.LastPacket = now;
@@ -270,6 +289,8 @@ public sealed partial class VoiceSystem : EntitySystem
 
         if (radio)
             SendRadio(session, state, speaker, speakerComp, msg, now, endOfSpurt);
+        else if (_radioEnabled && _radioMicrophones && !speakerComp.Ghost)
+            SendMicrophones(session, state, speaker, msg, now, endOfSpurt);
     }
 
     /// <summary>
@@ -403,68 +424,298 @@ public sealed partial class VoiceSystem : EntitySystem
 
         if (!state.Radio.TryGetValue(channel, out var radio))
         {
-            radio = new RadioRoute { StreamId = AllocateStreamId() };
+            radio = new RadioRoute { StreamId = AllocateStreamId(), Channel = channel };
             state.Radio[channel] = radio;
         }
 
         if (now - radio.Computed > _interval)
         {
             radio.Computed = now;
-            radio.Listeners.Clear();
 
             if (_radio.TryGetTransmitter(speaker, channel, out var radioSource))
-                _radio.CollectListeners(radioSource, channel, radio.Listeners);
-
-            radio.Listeners.Remove(session);
-
-            var nameEv = new TransformSpeakerNameEvent(speaker, Name(speaker));
-            RaiseLocalEvent(speaker, nameEv);
-            radio.Name = nameEv.VoiceName;
+                ComputeRoute(radio, radioSource, session, speaker);
+            else
+                ClearRoute(radio);
         }
 
+        SendOnRoute(radio, session, msg, now, endOfSpurt);
+    }
+
+    /// <summary>
+    /// Talking near a switched-on radio microphone (intercom, handheld radio) broadcasts on its channel, like text.
+    /// </summary>
+    private void SendMicrophones(ICommonSession session, SpeakerState state, EntityUid speaker, MsgVoiceTransmit msg,
+        TimeSpan now, bool endOfSpurt)
+    {
+        if (now - state.MicrophonesComputed > _interval)
+        {
+            state.MicrophonesComputed = now;
+            UpdateMicrophoneRoutes(session, state, speaker, now);
+        }
+
+        foreach (var route in state.Microphones.Values)
+        {
+            if (route.Active)
+                SendOnRoute(route, session, msg, now, endOfSpurt);
+        }
+    }
+
+    private void UpdateMicrophoneRoutes(ICommonSession session, SpeakerState state, EntityUid speaker, TimeSpan now)
+    {
+        foreach (var route in state.Microphones.Values)
+        {
+            route.Active = false;
+        }
+
+        _positionCache.Clear();
+        _hearingCache.Clear();
+
+        var speakerPos = GetPosition(speaker);
+        if (speakerPos.Map.MapId != MapId.Nullspace)
+        {
+            _radio.CollectMicrophones(speakerPos.Map, MaxMicrophoneSearchRange, _microphoneScratch);
+
+            // Loudest microphone first; only one per channel, so two intercoms in a room don't double the audio.
+            _microphoneCandidates.Clear();
+            foreach (var mic in _microphoneScratch)
+            {
+                if (mic.Owner == speaker
+                    || Vector2.Distance(speakerPos.Map.Position, _xform.GetMapCoordinates(mic.Owner).Position) > mic.Comp.ListenRange
+                    || mic.Comp.UnobstructedRequired && !_interaction.InRangeUnobstructed(speaker, mic.Owner, 0)
+                    || !_audibility.TryGetAudibility(speakerPos, GetPosition(mic.Owner), out var gain, out _)
+                    || gain < _minGain)
+                {
+                    continue;
+                }
+
+                _microphoneCandidates.Add((mic, gain));
+            }
+
+            _microphoneCandidates.Sort((a, b) => b.Gain.CompareTo(a.Gain));
+            _microphoneChannels.Clear();
+
+            foreach (var (mic, _) in _microphoneCandidates)
+            {
+                var channel = mic.Comp.BroadcastChannel;
+                if (!_microphoneChannels.Add(channel))
+                    continue;
+
+                if (!state.Microphones.TryGetValue(mic.Owner, out var route))
+                {
+                    route = new RadioRoute { StreamId = AllocateStreamId() };
+                    state.Microphones[mic.Owner] = route;
+                }
+
+                route.Channel = channel;
+                route.Active = true;
+                route.Computed = now;
+                ComputeRoute(route, mic.Owner, session, speaker);
+            }
+        }
+
+        // Forget microphones this speaker hasn't used for a while.
+        _expiredMicrophones.Clear();
+        foreach (var (mic, route) in state.Microphones)
+        {
+            if (!route.Active && now - route.Computed > MicrophoneRouteTimeout)
+                _expiredMicrophones.Add(mic);
+        }
+
+        foreach (var mic in _expiredMicrophones)
+        {
+            if (state.Microphones.Remove(mic, out var route))
+                ReleaseRoute(route);
+        }
+    }
+
+    /// <summary>
+    /// Works out who hears a radio transmission from <paramref name="radioSource"/>: players with their own receiver,
+    /// and players near a device playing it out loud.
+    /// </summary>
+    private void ComputeRoute(RadioRoute route, EntityUid radioSource, ICommonSession sender, EntityUid speaker)
+    {
+        _radio.CollectListeners(radioSource, route.Channel, route.Listeners, _loudspeakerScratch);
+        route.Listeners.Remove(sender);
+        UpdateLoudspeakerRecipients(route, sender);
+
+        var nameEv = new TransformSpeakerNameEvent(speaker, Name(speaker));
+        RaiseLocalEvent(speaker, nameEv);
+        route.Name = nameEv.VoiceName;
+    }
+
+    private void ClearRoute(RadioRoute route)
+    {
+        route.Listeners.Clear();
+        route.Loudspeakers.Clear();
+    }
+
+    /// <summary>
+    /// For each player without their own receiver for this transmission, the loudest device playing it near them.
+    /// Uses the same acoustics as people talking: walls, doors, vacuum, distance.
+    /// </summary>
+    private void UpdateLoudspeakerRecipients(RadioRoute route, ICommonSession sender)
+    {
+        route.Loudspeakers.Clear();
+
+        if (_loudspeakerGain > 0 && _loudspeakerScratch.Count > 0)
+        {
+            _positionCache.Clear();
+            _hearingCache.Clear();
+
+            foreach (var session in _players.Sessions)
+            {
+                if (session == sender
+                    || session.Status != SessionStatus.InGame
+                    || session.AttachedEntity is not { } listener
+                    || route.Listeners.Contains(session)
+                    || _ghostQuery.HasComp(listener))
+                {
+                    continue;
+                }
+
+                var listenerMap = _xform.GetMapCoordinates(listener);
+                EntityUid? bestDevice = null;
+                var bestGain = 0f;
+                var bestMuffle = 0f;
+
+                foreach (var device in _loudspeakerScratch)
+                {
+                    var devicePos = GetPosition(device);
+                    if (devicePos.Map.MapId != listenerMap.MapId
+                        || (devicePos.Map.Position - listenerMap.Position).LengthSquared() > 50f * 50f
+                        || !_audibility.TryGetAudibility(devicePos, GetPosition(listener), out var gain, out var muffle))
+                    {
+                        continue;
+                    }
+
+                    if (gain > bestGain)
+                    {
+                        bestDevice = device;
+                        bestGain = gain;
+                        bestMuffle = muffle;
+                    }
+                }
+
+                if (bestDevice is not { } chosen)
+                    continue;
+
+                var hearing = GetHearing(listener);
+                if (hearing.Deaf)
+                    continue;
+
+                bestGain *= _loudspeakerGain * hearing.Gain;
+                if (bestGain < _minGain)
+                    continue;
+
+                if (!route.DeviceStreams.TryGetValue(chosen, out var streamId))
+                {
+                    streamId = AllocateStreamId();
+                    route.DeviceStreams[chosen] = streamId;
+                }
+
+                route.Loudspeakers.Add(new LoudspeakerRecipient(session, chosen, streamId, bestGain,
+                    Acoustics.AcousticMath.CombineMuffle(bestMuffle, hearing.Muffle)));
+            }
+        }
+
+        // Stream ids of devices that stopped playing this transmission.
+        _expiredDevices.Clear();
+        foreach (var device in route.DeviceStreams.Keys)
+        {
+            if (!_loudspeakerScratch.Contains(device))
+                _expiredDevices.Add(device);
+        }
+
+        foreach (var device in _expiredDevices)
+        {
+            if (route.DeviceStreams.Remove(device, out var id))
+                _usedStreamIds.Remove(id);
+        }
+    }
+
+    private void SendOnRoute(RadioRoute route, ICommonSession session, MsgVoiceTransmit msg, TimeSpan now, bool endOfSpurt)
+    {
+        var channel = route.Channel.Id;
         var outgoing = _outgoing;
         outgoing.Mode = VoiceReceiveMode.Radio;
         outgoing.Flags = endOfSpurt ? VoiceReceiveFlags.EndOfSpurt : 0;
-        outgoing.StreamId = radio.StreamId;
+        outgoing.StreamId = route.StreamId;
         outgoing.Sequence = msg.Sequence;
         outgoing.Speaker = NetEntity.Invalid;
-        outgoing.Channel = channel.Id;
+        outgoing.Channel = channel;
         outgoing.Muffle = 0;
         outgoing.Payload = msg.Payload;
 
-        foreach (var listener in radio.Listeners)
+        foreach (var listener in route.Listeners)
         {
-            if (listener.Status != SessionStatus.InGame)
+            if (!TryGetRouteVolume(listener, session, channel, out var volume))
                 continue;
 
-            if (IsRadioChannelMuted(listener.UserId, channel.Id))
-            {
-                Stats.PacketsSuppressed++;
-                continue;
-            }
-
-            var volume = _moderation.GetListenerVolume(listener.UserId, session.UserId);
-            if (volume <= 0)
-            {
-                Stats.PacketsSuppressed++;
-                continue;
-            }
-
-            // Send the name with the first packets of a transmission and periodically after.
-            if (!radio.NameSent.TryGetValue(listener, out var sentAt) || now - sentAt > NameInterval)
-            {
-                outgoing.SpeakerName = radio.Name;
-                radio.NameSent[listener] = now;
-            }
-            else
-            {
-                outgoing.SpeakerName = null;
-            }
-
+            outgoing.SpeakerName = NameFor(route, listener, now);
             outgoing.Gain = Quantize(volume);
             if (TrySend(outgoing, listener))
                 Stats.BytesSent += msg.Payload.Length + 16;
         }
+
+        if (route.Loudspeakers.Count == 0)
+            return;
+
+        outgoing.Mode = VoiceReceiveMode.Loudspeaker;
+        foreach (var recipient in route.Loudspeakers)
+        {
+            if (!TryGetRouteVolume(recipient.Session, session, channel, out var volume))
+                continue;
+
+            var gain = recipient.Gain * volume;
+            if (gain < _minGain)
+                continue;
+
+            outgoing.StreamId = recipient.StreamId;
+            outgoing.Speaker = GetNetEntity(recipient.Device);
+            outgoing.SpeakerName = NameFor(route, recipient.Session, now);
+            outgoing.Gain = Quantize(gain);
+            outgoing.Muffle = Quantize(recipient.Muffle);
+            if (TrySend(outgoing, recipient.Session))
+                Stats.BytesSent += msg.Payload.Length + 20;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="listener"/> gets radio voice from <paramref name="sender"/> on this channel at all, and
+    /// at what volume (their own per-player volume).
+    /// </summary>
+    private bool TryGetRouteVolume(ICommonSession listener, ICommonSession sender, string channel, out float volume)
+    {
+        volume = 0;
+        if (listener.Status != SessionStatus.InGame)
+            return false;
+
+        if (IsRadioChannelMuted(listener.UserId, channel))
+        {
+            Stats.PacketsSuppressed++;
+            return false;
+        }
+
+        volume = _moderation.GetListenerVolume(listener.UserId, sender.UserId);
+        if (volume <= 0)
+        {
+            Stats.PacketsSuppressed++;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The speaker's name goes with the first packets of a transmission and periodically after.
+    /// </summary>
+    private static string? NameFor(RadioRoute route, ICommonSession listener, TimeSpan now)
+    {
+        if (route.NameSent.TryGetValue(listener, out var sentAt) && now - sentAt <= NameInterval)
+            return null;
+
+        route.NameSent[listener] = now;
+        return route.Name;
     }
 
     private bool TrySend(MsgVoiceReceive message, ICommonSession session)
@@ -733,13 +984,37 @@ public sealed partial class VoiceSystem : EntitySystem
     private void ReleaseState(SpeakerState state)
     {
         _usedStreamIds.Remove(state.LocalStreamId);
-        foreach (var route in state.Radio.Values)
-        {
-            _usedStreamIds.Remove(route.StreamId);
-        }
+        ReleaseRoutes(state);
 
         if (state.Entity is { } entity)
             _audibility.ForgetSpeaker(entity);
+    }
+
+    private void ReleaseRoutes(SpeakerState state)
+    {
+        foreach (var route in state.Radio.Values)
+        {
+            ReleaseRoute(route);
+        }
+
+        foreach (var route in state.Microphones.Values)
+        {
+            ReleaseRoute(route);
+        }
+
+        state.Radio.Clear();
+        state.Microphones.Clear();
+    }
+
+    private void ReleaseRoute(RadioRoute route)
+    {
+        _usedStreamIds.Remove(route.StreamId);
+        foreach (var id in route.DeviceStreams.Values)
+        {
+            _usedStreamIds.Remove(id);
+        }
+
+        route.DeviceStreams.Clear();
     }
 
     /// <summary>
@@ -767,6 +1042,12 @@ public sealed partial class VoiceSystem : EntitySystem
         public readonly VoiceSequenceWindow Sequence = new();
         public readonly List<LocalRecipient> Local = new();
         public readonly Dictionary<ProtoId<RadioChannelPrototype>, RadioRoute> Radio = new();
+
+        /// <summary>
+        /// Radio microphones (intercoms, handheld radios) picking this speaker up, by microphone entity.
+        /// </summary>
+        public readonly Dictionary<EntityUid, RadioRoute> Microphones = new();
+        public TimeSpan MicrophonesComputed;
         public ushort LocalStreamId;
         public EntityUid? Entity;
         public TimeSpan LastPacket;
@@ -775,14 +1056,34 @@ public sealed partial class VoiceSystem : EntitySystem
         public int AbuseCount;
     }
 
+    /// <summary>
+    /// One radio transmission path: a speaker on a channel through their own radio, or through a microphone.
+    /// </summary>
     private sealed class RadioRoute
     {
         public ushort StreamId;
+        public ProtoId<RadioChannelPrototype> Channel;
         public TimeSpan Computed;
         public string Name = string.Empty;
+
+        /// <summary>
+        /// For microphone routes: whether the speaker is currently in range of it.
+        /// </summary>
+        public bool Active;
+
         public readonly HashSet<ICommonSession> Listeners = new();
+        public readonly List<LoudspeakerRecipient> Loudspeakers = new();
+
+        /// <summary>
+        /// Stream id per device playing this route out loud, so each device is its own positional sound.
+        /// </summary>
+        public readonly Dictionary<EntityUid, ushort> DeviceStreams = new();
+
         public readonly Dictionary<ICommonSession, TimeSpan> NameSent = new();
     }
+
+    private readonly record struct LoudspeakerRecipient(ICommonSession Session, EntityUid Device, ushort StreamId,
+        float Gain, float Muffle);
 
     private readonly record struct LocalRecipient(ICommonSession Session, float Gain, float Muffle);
 

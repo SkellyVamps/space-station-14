@@ -1,5 +1,6 @@
 using Content.Server.Power.Components;
 using Content.Shared.Chat;
+using Content.Shared.Power.EntitySystems;
 using Content.Shared.Radio;
 using Content.Shared.Radio.Components;
 using Robust.Shared.Map;
@@ -17,6 +18,10 @@ namespace Content.Server.Voice;
 public sealed partial class VoiceRadioSystem : EntitySystem
 {
     [Dependency] private IPrototypeManager _proto = default!;
+    [Dependency] private EntityLookupSystem _lookup = default!;
+    [Dependency] private SharedPowerReceiverSystem _power = default!;
+
+    private readonly HashSet<Entity<RadioMicrophoneComponent>> _micLookup = new();
 
     private EntityQuery<HeadsetComponent> _headsetQuery;
     private EntityQuery<EncryptionKeyHolderComponent> _keyQuery;
@@ -25,6 +30,7 @@ public sealed partial class VoiceRadioSystem : EntitySystem
     private EntityQuery<IntercomComponent> _intercomQuery;
     private EntityQuery<TelecomExemptComponent> _exemptQuery;
     private EntityQuery<ActorComponent> _actorQuery;
+    private EntityQuery<RadioSpeakerComponent> _speakerQuery;
 
     public override void Initialize()
     {
@@ -37,6 +43,7 @@ public sealed partial class VoiceRadioSystem : EntitySystem
         _intercomQuery = GetEntityQuery<IntercomComponent>();
         _exemptQuery = GetEntityQuery<TelecomExemptComponent>();
         _actorQuery = GetEntityQuery<ActorComponent>();
+        _speakerQuery = GetEntityQuery<RadioSpeakerComponent>();
     }
 
     /// <summary>
@@ -163,12 +170,14 @@ public sealed partial class VoiceRadioSystem : EntitySystem
 
     /// <summary>
     /// Finds every player session that hears a voice transmission on <paramref name="channelId"/> from
-    /// <paramref name="radioSource"/>.
+    /// <paramref name="radioSource"/> through their own receiver (headset, intrinsic radio), and every device that
+    /// plays it out loud (intercoms and handheld radios with their speaker on).
     /// </summary>
     public void CollectListeners(EntityUid radioSource, ProtoId<RadioChannelPrototype> channelId,
-        HashSet<ICommonSession> output)
+        HashSet<ICommonSession> output, List<EntityUid>? loudspeakers = null)
     {
         output.Clear();
+        loudspeakers?.Clear();
 
         if (!_proto.TryIndex(channelId, out var channel))
             return;
@@ -199,7 +208,14 @@ public sealed partial class VoiceRadioSystem : EntitySystem
             if (!channel.LongRange && xform.MapID != sourceMap && !radio.GlobalReceive)
                 continue;
 
-            if (!TryGetListener(receiver, xform, out var session))
+            // A device with its speaker on plays it for everyone around (never the one transmitting, no feedback).
+            var loudspeaker = loudspeakers != null
+                              && receiver != radioSource
+                              && _speakerQuery.TryComp(receiver, out var speaker)
+                              && speaker.Enabled;
+
+            ICommonSession? session = null;
+            if (!loudspeaker && !TryGetListener(receiver, xform, out session))
                 continue;
 
             var receiveAttempt = new RadioReceiveAttemptEvent(channel, radioSource, receiver);
@@ -208,7 +224,30 @@ public sealed partial class VoiceRadioSystem : EntitySystem
             if (receiveAttempt.Cancelled)
                 continue;
 
-            output.Add(session);
+            if (loudspeaker)
+                loudspeakers!.Add(receiver);
+            else
+                output.Add(session!);
+        }
+    }
+
+    /// <summary>
+    /// Collects the switched-on, powered radio microphones (intercoms, handheld radios) within
+    /// <paramref name="range"/> of <paramref name="coordinates"/>. Callers still check each one's
+    /// <see cref="RadioMicrophoneComponent.ListenRange"/> and whether it can actually hear the speaker.
+    /// </summary>
+    public void CollectMicrophones(MapCoordinates coordinates, float range, List<Entity<RadioMicrophoneComponent>> output)
+    {
+        output.Clear();
+        _micLookup.Clear();
+        _lookup.GetEntitiesInRange(coordinates, range, _micLookup);
+
+        foreach (var mic in _micLookup)
+        {
+            if (!mic.Comp.Enabled || mic.Comp.PowerRequired && !_power.IsPowered(mic.Owner))
+                continue;
+
+            output.Add(mic);
         }
     }
 
@@ -216,7 +255,6 @@ public sealed partial class VoiceRadioSystem : EntitySystem
     /// Maps a radio receiver to the player that hears it: an intrinsic receiver's own player, or the wearer of an
     /// equipped headset.
     /// </summary>
-    // TODO VOICE: intercoms and handheld radios with speakers should play positionally at their location.
     private bool TryGetListener(EntityUid receiver, TransformComponent xform, out ICommonSession session)
     {
         if (_actorQuery.TryComp(receiver, out var actor))

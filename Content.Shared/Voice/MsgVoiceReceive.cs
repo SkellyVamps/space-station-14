@@ -15,6 +15,12 @@ public enum VoiceReceiveMode : byte
     /// Heard through a radio receiver; not positional, radio effects applied.
     /// </summary>
     Radio = 1,
+
+    /// <summary>
+    /// A radio transmission played out loud by a device with a speaker (intercom, handheld radio): positional at
+    /// <see cref="MsgVoiceReceive.Speaker"/>, which is the device, with radio effects and acoustics applied.
+    /// </summary>
+    Loudspeaker = 2,
 }
 
 [Flags]
@@ -56,7 +62,8 @@ public sealed class MsgVoiceReceive : NetMessage
     public ushort Sequence;
 
     /// <summary>
-    /// Speaking entity. Only sent for <see cref="VoiceReceiveMode.Local"/>.
+    /// Speaking entity for <see cref="VoiceReceiveMode.Local"/>; the playing device for
+    /// <see cref="VoiceReceiveMode.Loudspeaker"/>. Not sent for <see cref="VoiceReceiveMode.Radio"/>.
     /// </summary>
     public NetEntity Speaker;
 
@@ -71,7 +78,7 @@ public sealed class MsgVoiceReceive : NetMessage
     public byte Muffle;
 
     /// <summary>
-    /// Radio channel prototype ID for <see cref="VoiceReceiveMode.Radio"/>.
+    /// Radio channel prototype ID for <see cref="VoiceReceiveMode.Radio"/> and <see cref="VoiceReceiveMode.Loudspeaker"/>.
     /// </summary>
     public string? Channel;
 
@@ -91,9 +98,10 @@ public sealed class MsgVoiceReceive : NetMessage
         Gain = buffer.ReadByte();
         Muffle = buffer.ReadByte();
 
-        if (Mode == VoiceReceiveMode.Local)
+        if (Mode != VoiceReceiveMode.Radio)
             Speaker = new NetEntity(buffer.ReadInt32());
-        else
+
+        if (Mode != VoiceReceiveMode.Local)
             Channel = buffer.ReadString();
 
         if ((Flags & VoiceReceiveFlags.HasName) != 0)
@@ -117,9 +125,10 @@ public sealed class MsgVoiceReceive : NetMessage
         buffer.Write(Gain);
         buffer.Write(Muffle);
 
-        if (Mode == VoiceReceiveMode.Local)
+        if (Mode != VoiceReceiveMode.Radio)
             buffer.Write(Speaker.Id);
-        else
+
+        if (Mode != VoiceReceiveMode.Local)
             buffer.Write(Channel ?? string.Empty);
 
         if (SpeakerName != null)

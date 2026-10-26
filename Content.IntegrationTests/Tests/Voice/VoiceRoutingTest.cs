@@ -4,6 +4,7 @@ using System.Numerics;
 using Content.Client.Voice;
 using Content.IntegrationTests.Fixtures;
 using Content.Server.Atmos.EntitySystems;
+using Content.Server.Radio.EntitySystems;
 using Content.Server.Voice;
 using Content.Shared.Atmos;
 using Content.Shared.Atmos.Components;
@@ -46,6 +47,22 @@ public sealed class VoiceRoutingTest : GameTest
   - type: ActiveRadio
     channels: [ Common ]
   - type: TelecomExempt
+
+- type: entity
+  id: VoiceTestHandheldTalker
+  parent: MobHuman
+  components:
+  - type: IntrinsicRadioTransmitter
+    channels: [ Handheld ]
+  - type: TelecomExempt
+
+- type: entity
+  id: VoiceTestHandheldListener
+  parent: VoiceTestHandheldTalker
+  components:
+  - type: IntrinsicRadioReceiver
+  - type: ActiveRadio
+    channels: [ Handheld ]
 ";
 
     public override PoolSettings PoolSettings => new() { DummyTicker = false, Connected = true, Dirty = true };
@@ -56,6 +73,7 @@ public sealed class VoiceRoutingTest : GameTest
     private ICommonSession _dummy = default!;
     private EntityUid _listener;
     private EntityUid _speaker;
+    private ushort _nextSequence = 1;
 
     private IEntityManager Ent => Pair.Server.EntMan;
 
@@ -125,7 +143,8 @@ public sealed class VoiceRoutingTest : GameTest
             Ent.System<VoiceSystem>().HandleTransmit(session, new MsgVoiceTransmit
             {
                 Flags = radio ? VoiceTransmitFlags.Radio : VoiceTransmitFlags.None,
-                Sequence = seq ?? (ushort) Random.Shared.Next(ushort.MaxValue),
+                // Counting up like a real client; random numbers occasionally land in the "too old" range.
+                Sequence = seq ?? _nextSequence++,
                 Payload = _opusFrame,
             });
         });
@@ -305,6 +324,75 @@ public sealed class VoiceRoutingTest : GameTest
             Assert.That(Ent.System<VoiceCreatureSystem>().IsUnintelligible(hamster));
             Ent.DeleteEntity(hamster);
         });
+    }
+
+    [Test]
+    public async Task RadiosWithSpeakersPlayOutLoud()
+    {
+        // Nobody here has a radio receiver; the speaker is far away.
+        await Setup("VoiceTestHandheldTalker");
+
+        EntityUid radio = default;
+        await Pair.Server.WaitPost(() =>
+        {
+            Ent.System<SharedTransformSystem>().SetMapCoordinates(_speaker,
+                new MapCoordinates(new Vector2(200, 200), Ent.GetComponent<TransformComponent>(_listener).MapID));
+
+            radio = Ent.SpawnAtPosition("RadioHandheld", new EntityCoordinates(_grid.Owner, new Vector2(2.5f, 0.5f)));
+            Ent.System<RadioDeviceSystem>().SetSpeakerEnabled(radio, null, true, quiet: true);
+        });
+        await RunTicksSync(10);
+
+        var before = ClientReceived;
+        await Speak(_dummy, radio: true);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "a handheld radio with its speaker on plays it");
+
+        var last = Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value;
+        Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Loudspeaker));
+        Assert.That(last.Speaker, Is.EqualTo(Ent.GetNetEntity(radio)), "it plays from the radio");
+        Assert.That(last.Channel, Is.EqualTo("Handheld"));
+
+        // Speaker off: silence (once the route is recomputed, a few times a second).
+        await Pair.Server.WaitPost(() => Ent.System<RadioDeviceSystem>().SetSpeakerEnabled(radio, null, false, quiet: true));
+        await Task.Delay(300);
+        await RunTicksSync(10);
+        before = ClientReceived;
+        await Speak(_dummy, radio: true);
+        Assert.That(ClientReceived, Is.EqualTo(before));
+    }
+
+    [Test]
+    public async Task TalkingNearRadioMicrophonesBroadcasts()
+    {
+        await Setup("VoiceTestHandheldListener");
+
+        // The listener is far away and only reachable over the Handheld channel.
+        await Pair.Server.WaitPost(() =>
+        {
+            Ent.System<SharedTransformSystem>().SetMapCoordinates(_listener,
+                new MapCoordinates(new Vector2(200, 200), Ent.GetComponent<TransformComponent>(_speaker).MapID));
+        });
+        await RunTicksSync(10);
+
+        var before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before), "too far, and no microphone yet");
+
+        EntityUid radio = default;
+        await Pair.Server.WaitPost(() =>
+        {
+            radio = Ent.SpawnAtPosition("RadioHandheld", new EntityCoordinates(_grid.Owner, new Vector2(4.5f, 0.5f)));
+            Ent.System<RadioDeviceSystem>().SetMicrophoneEnabled(radio, null, true, quiet: true);
+        });
+        await Task.Delay(300); // microphones near a speaker are looked up a few times a second
+        await RunTicksSync(10);
+
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "the microphone picked it up");
+
+        var last = Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value;
+        Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Radio));
+        Assert.That(last.Channel, Is.EqualTo("Handheld"));
     }
 
     [Test]

@@ -223,3 +223,14 @@ in Options -> Voice works without a server.
 Built in: a `ReplacementAccent` whose prototype has `fullReplacements`, `MonkeyAccent`, and the explicit
 `VoiceUnintelligible` component for anything else. Subscribe to the event to add your own rules (a language system,
 for example).
+
+## Intercoms and handheld radios
+
+Radio routing mirrors text radio (`VoiceRadioSystem.CollectListeners`). Receivers that belong to a player (headset,
+intrinsic radio) get `VoiceReceiveMode.Radio`; enabled `RadioSpeaker` devices are collected separately, and each player
+without their own receiver gets the loudest such device near them as `VoiceReceiveMode.Loudspeaker`: positional at the
+device, radio filter, acoustics from the device to the listener (`voice.loudspeaker_gain`).
+
+Speaking (not into a radio) near an enabled, powered `RadioMicrophone` within its `listenRange` that can acoustically
+hear you transmits on its `broadcastChannel` with the microphone as radio source, one microphone per channel.
+Routes are recomputed every `voice.audibility_interval` like local recipients.

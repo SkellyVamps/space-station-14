@@ -208,6 +208,19 @@ public sealed partial class CCVars
         CVarDef.Create("voice.radio_local_gain", 0.6f, CVar.SERVER);
 
     /// <summary>
+    ///     Volume of radio voice played out loud by intercoms and handheld radios with their speaker on, relative to
+    ///     someone talking at the same spot. 0 turns it off.
+    /// </summary>
+    public static readonly CVarDef<float> VoiceLoudspeakerGain =
+        CVarDef.Create("voice.loudspeaker_gain", 0.8f, CVar.SERVER);
+
+    /// <summary>
+    ///     Whether intercoms and handheld radios with their microphone on broadcast voice spoken near them.
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceRadioMicrophones =
+        CVarDef.Create("voice.radio_microphones", true, CVar.SERVER);
+
+    /// <summary>
     ///     Seconds of talking before a creature that can't speak (hamster, dog...) makes its first noise. Their voice
     ///     itself is never transmitted.
     /// </summary>

@@ -107,7 +107,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         // Stop anything already playing on a channel that was just muted.
         foreach (var (key, stream) in _streams)
         {
-            if (stream.Mode == VoiceReceiveMode.Radio && stream.Channel != null && _mutedRadioChannels.Contains(stream.Channel))
+            if (stream.Mode != VoiceReceiveMode.Local && stream.Channel != null && _mutedRadioChannels.Contains(stream.Channel))
                 _toRemove.Add(key);
         }
     }
@@ -156,7 +156,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             return;
 
         // The server stops sending muted channels once it knows; this covers the gap.
-        if (msg.Mode == VoiceReceiveMode.Radio && msg.Channel != null && _mutedRadioChannels.Contains(msg.Channel))
+        if (msg.Mode != VoiceReceiveMode.Local && msg.Channel != null && _mutedRadioChannels.Contains(msg.Channel))
             return;
 
         try
@@ -184,6 +184,10 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             }
             else
             {
+                // Loudspeakers play from the device.
+                if (msg.Mode == VoiceReceiveMode.Loudspeaker)
+                    stream.Speaker = msg.Speaker;
+
                 stream.Channel = msg.Channel;
                 if (msg.SpeakerName != null)
                     stream.Name = msg.SpeakerName;
@@ -218,7 +222,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
 
         ProcessorChain? effects = null;
         var seed = msg.StreamId;
-        if (msg.Mode == VoiceReceiveMode.Radio)
+        if (msg.Mode != VoiceReceiveMode.Local)
         {
             if (_proto.TryIndex<VoiceFilterPrototype>(_radioFilter, out var radio))
                 effects = VoiceChainBuilder.Build(radio, seed);
@@ -260,7 +264,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             try
             {
                 UpdatePosition(stream, listenerMap);
-                stream.Volume = stream.Mode == VoiceReceiveMode.Radio ? _radioVolume : _localVolume;
+                stream.Volume = stream.Mode == VoiceReceiveMode.Local ? _localVolume : _radioVolume;
                 stream.Fill(now, queueTarget);
             }
             catch (Exception e)
@@ -355,7 +359,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         var now = _timing.RealTime;
         foreach (var stream in _streams.Values)
         {
-            if (stream.Mode == VoiceReceiveMode.Radio && now - stream.LastPacket < SpeakingWindow)
+            if (stream.Mode != VoiceReceiveMode.Local && now - stream.LastPacket < SpeakingWindow)
                 output.Add((stream.Channel ?? string.Empty, stream.Name ?? string.Empty));
         }
     }

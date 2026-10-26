@@ -26,6 +26,12 @@ time without restarting.
 
 Talking into your radio is also heard, a little more quietly, by people near you.
 
+## Intercoms and handheld radios
+
+* An intercom or handheld radio with its **speaker** on plays radio voice out loud. Everyone nearby hears it from the
+  device, through walls and doors like normal speech, with the radio sound.
+* With its **microphone** on, it broadcasts what people say near it on its channel, just like text chat.
+
 ## Radio panel
 
 A small **Radio** panel shows who is talking on the radio and on which channel. It's there whenever you're in game,
