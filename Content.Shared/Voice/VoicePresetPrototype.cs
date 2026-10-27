@@ -5,7 +5,7 @@ namespace Content.Shared.Voice;
 /// <summary>
 /// A ready-made character voice players can pick in the character editor as a starting point.
 /// </summary>
-[Prototype("voicePreset")]
+[Prototype]
 public sealed partial class VoicePresetPrototype : IPrototype
 {
     [IdDataField]

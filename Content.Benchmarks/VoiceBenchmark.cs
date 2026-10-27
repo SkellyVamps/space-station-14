@@ -1,3 +1,4 @@
+using Robust.Shared.Analyzers;
 using System.Collections.Generic;
 using BenchmarkDotNet.Attributes;
 using Content.Server.Voice.Acoustics;
@@ -12,6 +13,7 @@ namespace Content.Benchmarks;
 /// <summary>
 /// Hot paths of voice chat: server-side acoustic propagation and client-side DSP / codec per 20 ms frame.
 /// </summary>
+[Virtual]
 [MemoryDiagnoser]
 public class VoiceBenchmark
 {
