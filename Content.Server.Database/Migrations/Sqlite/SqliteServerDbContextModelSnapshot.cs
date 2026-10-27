@@ -1142,6 +1142,10 @@ namespace Content.Server.Database.Migrations.Sqlite
                         .HasColumnType("REAL")
                         .HasColumnName("voice_formant");
 
+                    b.Property<float>("VoiceNasality")
+                        .HasColumnType("REAL")
+                        .HasColumnName("voice_nasality");
+
                     b.Property<float>("VoicePitch")
                         .HasColumnType("REAL")
                         .HasColumnName("voice_pitch");
@@ -1149,6 +1153,10 @@ namespace Content.Server.Database.Migrations.Sqlite
                     b.Property<float>("VoiceRoughness")
                         .HasColumnType("REAL")
                         .HasColumnName("voice_roughness");
+
+                    b.Property<float>("VoiceTremble")
+                        .HasColumnType("REAL")
+                        .HasColumnName("voice_tremble");
 
                     b.HasKey("Id")
                         .HasName("PK_profile");

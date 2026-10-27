@@ -244,3 +244,11 @@ meter / voice activation, noise gate, the gameplay chain, limiter, Opus.
 `VoiceDuckingSystem` lowers other game sounds while voice is audible (`voice.ducking`): it runs after the engine's
 `AudioSystem` and offsets every playing `AudioComponent`'s volume; the engine restores them on its next update.
 Per-channel radio volume (`voice.radio_channel_volumes`) multiplies the radio volume on the client.
+
+## Character voices
+
+`VoiceProfile` (pitch, formant, brightness, roughness, breathiness, nasality, tremble) is stored per character
+(`profile.voice_*` columns) and clamped by `voice.profile_max_pitch` / `_formant`. Presets are `voicePreset`
+prototypes (`Resources/Prototypes/Voice/voice_presets.yml`); add one with a localized name and a profile. Voice codes
+are `VOICE1:` followed by the values separated by `;`; missing trailing values read as 0, so new parameters stay
+compatible with old codes.

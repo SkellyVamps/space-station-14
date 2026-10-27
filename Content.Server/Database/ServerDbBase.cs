@@ -220,6 +220,8 @@ namespace Content.Server.Database
             profile.VoiceBrightness = humanoid.CharacterVoice.Brightness;
             profile.VoiceRoughness = humanoid.CharacterVoice.Roughness;
             profile.VoiceBreathiness = humanoid.CharacterVoice.Breathiness;
+            profile.VoiceNasality = humanoid.CharacterVoice.Nasality;
+            profile.VoiceTremble = humanoid.CharacterVoice.Tremble;
             profile.Gender = humanoid.Gender.ToString();
             profile.EyeColor = appearance.EyeColor.ToHex();
             profile.SkinColor = appearance.SkinColor.ToHex();

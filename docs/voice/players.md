@@ -66,8 +66,13 @@ its voice.
 ## Your character's voice
 
 In the character editor, **Voice chat character voice** changes how *this character* sounds: pitch, vocal size,
-brightness, roughness, breathiness. Press **Preview** to hear it with your microphone. Each character keeps their own
-voice. Species add their own touch (a lizard's slight hiss, a Vox's sharpness...).
+brightness, roughness, breathiness, nasality and tremble. Press **Preview** to hear it with your microphone. Each
+character keeps their own voice. Species add their own touch (a lizard's slight hiss, a Vox's sharpness...).
+
+* **Preset** starts from a ready-made voice (deep, gravelly, soft, squeaky, nasal, elderly...); adjust from there.
+* **Copy from** copies the voice of another of your characters.
+* **Copy code** / **Paste code** turn a voice into a short piece of text (`VOICE1:...`) you can paste into another
+  character or send to a friend.
 
 In game, masks, helmets and some equipment change how you sound, and some devices can disguise your voice.
 

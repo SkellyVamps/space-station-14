@@ -38,6 +38,16 @@ humanoid-profile-editor-character-voice-formant = Vocal size
 humanoid-profile-editor-character-voice-brightness = Brightness
 humanoid-profile-editor-character-voice-roughness = Roughness
 humanoid-profile-editor-character-voice-breathiness = Breathiness
+humanoid-profile-editor-character-voice-nasality = Nasality
+humanoid-profile-editor-character-voice-tremble = Tremble
+humanoid-profile-editor-character-voice-preset = Preset
+humanoid-profile-editor-character-voice-preset-custom = Custom
+humanoid-profile-editor-character-voice-copy-from = Copy from
+humanoid-profile-editor-character-voice-copy-from-choose = Another character...
+humanoid-profile-editor-character-voice-copy-code = Copy code
+humanoid-profile-editor-character-voice-copy-code-tooltip = Copies this voice as text, to paste into another character or share with a friend.
+humanoid-profile-editor-character-voice-paste-code = Paste code
+humanoid-profile-editor-character-voice-paste-code-tooltip = Sets this character's voice from a code copied with "Copy code".
 humanoid-profile-editor-character-voice-preview = Preview
 humanoid-profile-editor-character-voice-preview-tooltip = Hear your microphone through this character's voice (including species). Nothing is sent to anyone.
 humanoid-profile-editor-character-voice-randomize = Randomize
@@ -129,3 +139,19 @@ voice-radio-panel-no-channels = No radio channels available
 
 game-hud-open-voice-radio-panel-button-tooltip = Show or hide the radio panel (who is talking on the radio, which channels you hear and talk on).
 voice-radio-panel-volume-tooltip = Volume of { $channel } (middle is normal).
+
+## Voice presets (character editor)
+
+voice-preset-neutral = Neutral
+voice-preset-deep = Deep
+voice-preset-booming = Booming
+voice-preset-gravelly = Gravelly
+voice-preset-hoarse = Hoarse
+voice-preset-soft = Soft
+voice-preset-whispery = Whispery
+voice-preset-bright = Bright
+voice-preset-youthful = Youthful
+voice-preset-squeaky = Squeaky
+voice-preset-nasal = Nasal
+voice-preset-nervous = Nervous
+voice-preset-elderly = Elderly

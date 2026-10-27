@@ -1207,6 +1207,10 @@ namespace Content.Server.Database.Migrations.Postgres
                         .HasColumnType("real")
                         .HasColumnName("voice_formant");
 
+                    b.Property<float>("VoiceNasality")
+                        .HasColumnType("real")
+                        .HasColumnName("voice_nasality");
+
                     b.Property<float>("VoicePitch")
                         .HasColumnType("real")
                         .HasColumnName("voice_pitch");
@@ -1214,6 +1218,10 @@ namespace Content.Server.Database.Migrations.Postgres
                     b.Property<float>("VoiceRoughness")
                         .HasColumnType("real")
                         .HasColumnName("voice_roughness");
+
+                    b.Property<float>("VoiceTremble")
+                        .HasColumnType("real")
+                        .HasColumnName("voice_tremble");
 
                     b.HasKey("Id")
                         .HasName("PK_profile");

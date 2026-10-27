@@ -340,6 +340,8 @@ namespace Content.Server.Database
         public float VoiceBrightness { get; set; }
         public float VoiceRoughness { get; set; }
         public float VoiceBreathiness { get; set; }
+        public float VoiceNasality { get; set; }
+        public float VoiceTremble { get; set; }
         public string Gender { get; set; } = null!;
         public string Species { get; set; } = null!;
         [Column(TypeName = "jsonb")] public JsonDocument? OrganMarkings { get; set; } = null!;

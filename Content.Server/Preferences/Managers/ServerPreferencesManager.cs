@@ -205,7 +205,9 @@ namespace Content.Server.Preferences.Managers
                     profile.VoiceFormant,
                     profile.VoiceBrightness,
                     profile.VoiceRoughness,
-                    profile.VoiceBreathiness),
+                    profile.VoiceBreathiness,
+                    profile.VoiceNasality,
+                    profile.VoiceTremble),
             };
         }
 

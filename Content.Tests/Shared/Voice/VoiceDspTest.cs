@@ -239,4 +239,52 @@ public sealed class VoiceDspTest
         var speechAfter = Rms(output.AsSpan(Rate + Rate / 8 + 512, Rate / 4));
         Assert.That(speechAfter, Is.GreaterThan(speechBefore * 0.8f));
     }
+
+    [Test]
+    public void VoiceCodeRoundTrips()
+    {
+        var voice = new VoiceProfile(-3.5f, 1.25f, -0.4f, 0.3f, 0.1f, 0.75f, 0.5f);
+        Assert.That(VoiceProfile.TryParseCode(voice.ToCode(), out var parsed));
+        Assert.That(parsed, Is.EqualTo(voice));
+
+        // Codes from before nasality/tremble existed still work.
+        Assert.That(VoiceProfile.TryParseCode("VOICE1:1;2;0.5;0;0", out var old));
+        Assert.That(old, Is.EqualTo(new VoiceProfile(1, 2, 0.5f)));
+
+        Assert.That(VoiceProfile.TryParseCode("hello", out _), Is.False);
+        Assert.That(VoiceProfile.TryParseCode("VOICE1:1;NaN;0;0;0", out _), Is.False);
+        Assert.That(VoiceProfile.TryParseCode("VOICE1:1;2", out _), Is.False);
+        Assert.That(VoiceProfile.TryParseCode(null, out _), Is.False);
+
+        // Out of range values are clamped by the caller.
+        Assert.That(VoiceProfile.TryParseCode("VOICE1:99;-99;5;5;5;5;5", out var wild));
+        Assert.That(wild.Clamped(6, 4), Is.EqualTo(new VoiceProfile(6, -4, 1, 1, 1, 1, 1)));
+    }
+
+    [Test]
+    public void NasalityAndTrembleChangeTheSound()
+    {
+        foreach (var voice in new[] { new VoiceProfile(0, 0, nasality: 1f), new VoiceProfile(0, 0, tremble: 1f) })
+        {
+            var processors = new System.Collections.Generic.List<IVoiceProcessor>();
+            voice.CreateProcessors(Rate, 1, processors);
+            Assert.That(processors, Is.Not.Empty, voice.ToString());
+
+            var input = Tone(1000, Rate / 2);
+            var output = (float[]) input.Clone();
+            foreach (var processor in processors)
+            {
+                processor.Process(output);
+            }
+
+            var difference = 0.0;
+            for (var i = Rate / 10; i < output.Length; i++)
+            {
+                Assert.That(float.IsFinite(output[i]), voice.ToString());
+                difference += Math.Abs(output[i] - input[i]);
+            }
+
+            Assert.That(difference / output.Length, Is.GreaterThan(0.01), voice.ToString());
+        }
+    }
 }

@@ -1,0 +1,118 @@
+# Ready-made character voices for the character editor. Pitch and formant are in semitones, the rest 0-1
+# (brightness -1 to 1). See Content.Shared/Voice/VoiceProfile.cs.
+
+- type: voicePreset
+  id: Neutral
+  name: voice-preset-neutral
+  order: 0
+
+- type: voicePreset
+  id: Deep
+  name: voice-preset-deep
+  order: 10
+  profile:
+    pitch: -4
+    formant: -2
+    brightness: -0.3
+
+- type: voicePreset
+  id: Booming
+  name: voice-preset-booming
+  order: 20
+  profile:
+    pitch: -5
+    formant: -3.5
+    brightness: -0.5
+    roughness: 0.1
+
+- type: voicePreset
+  id: Gravelly
+  name: voice-preset-gravelly
+  order: 30
+  profile:
+    pitch: -2
+    formant: -1
+    brightness: -0.2
+    roughness: 0.6
+
+- type: voicePreset
+  id: Hoarse
+  name: voice-preset-hoarse
+  order: 40
+  profile:
+    brightness: -0.2
+    roughness: 0.45
+    breathiness: 0.45
+
+- type: voicePreset
+  id: Soft
+  name: voice-preset-soft
+  order: 50
+  profile:
+    pitch: 1
+    brightness: -0.4
+    breathiness: 0.5
+
+- type: voicePreset
+  id: Whispery
+  name: voice-preset-whispery
+  order: 60
+  profile:
+    brightness: 0.3
+    breathiness: 0.9
+
+- type: voicePreset
+  id: Bright
+  name: voice-preset-bright
+  order: 70
+  profile:
+    pitch: 2
+    formant: 1
+    brightness: 0.5
+
+- type: voicePreset
+  id: Youthful
+  name: voice-preset-youthful
+  order: 80
+  profile:
+    pitch: 4
+    formant: 3
+    brightness: 0.2
+
+- type: voicePreset
+  id: Squeaky
+  name: voice-preset-squeaky
+  order: 90
+  profile:
+    pitch: 5.5
+    formant: 3.5
+    brightness: 0.4
+
+- type: voicePreset
+  id: Nasal
+  name: voice-preset-nasal
+  order: 100
+  profile:
+    pitch: 1
+    brightness: 0.2
+    nasality: 0.8
+
+- type: voicePreset
+  id: Nervous
+  name: voice-preset-nervous
+  order: 110
+  profile:
+    pitch: 2
+    breathiness: 0.2
+    tremble: 0.4
+
+- type: voicePreset
+  id: Elderly
+  name: voice-preset-elderly
+  order: 120
+  profile:
+    pitch: -1
+    formant: -0.5
+    roughness: 0.3
+    breathiness: 0.3
+    tremble: 0.6
