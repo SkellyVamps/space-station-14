@@ -46,6 +46,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
     private readonly List<(VoiceReceiveMode, ushort)> _toRemove = new();
     private readonly Dictionary<NetEntity, float> _playerVolumes = new();
     private readonly HashSet<string> _mutedRadioChannels = new();
+    private readonly Dictionary<string, float> _channelVolumes = new();
 
     private bool _enabled;
     private float _localVolume;
@@ -79,6 +80,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceJitterBufferMs, v => _jitterMs = Math.Clamp(v, 20, 400), true);
         Subs.CVar(_cfg, CCVars.VoiceRadioFilter, v => _radioFilter = v, true);
         Subs.CVar(_cfg, CCVars.VoiceRadioMutedChannels, OnMutedRadioChannelsChanged, true);
+        Subs.CVar(_cfg, CCVars.VoiceRadioChannelVolumes, v => ParseChannelVolumes(v, _channelVolumes), true);
 
         _net.Disconnect += OnDisconnect;
     }
@@ -124,6 +126,48 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
     }
 
     public bool IsRadioChannelMuted(string channel) => _mutedRadioChannels.Contains(channel);
+
+    /// <summary>
+    /// Parses <see cref="CCVars.VoiceRadioChannelVolumes"/> ("Common=0.5,Security=1.5").
+    /// </summary>
+    public static void ParseChannelVolumes(string value, Dictionary<string, float> output)
+    {
+        output.Clear();
+        foreach (var pair in ParseChannelList(value))
+        {
+            var split = pair.Split('=', 2);
+            if (split.Length == 2
+                && float.TryParse(split[1], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var volume)
+                && float.IsFinite(volume))
+            {
+                output[split[0].Trim()] = Math.Clamp(volume, 0f, 2f);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The player's volume for a radio channel (1 if they haven't changed it).
+    /// </summary>
+    public float GetChannelVolume(string? channel)
+    {
+        return channel != null && _channelVolumes.TryGetValue(channel, out var volume) ? volume : 1f;
+    }
+
+    /// <summary>
+    /// Whether anyone is audibly talking right now (for lowering other game sounds).
+    /// </summary>
+    public bool AnyVoicePlaying()
+    {
+        var now = _timing.RealTime;
+        foreach (var stream in _streams.Values)
+        {
+            if (now - stream.LastPacket < SpeakingWindow && stream.TargetGain * stream.Volume > 0.05f)
+                return true;
+        }
+
+        return false;
+    }
 
     private void OnPlayerVolumeChanged(VoicePlayerVolumeChangedEvent ev)
     {
@@ -264,7 +308,9 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             try
             {
                 UpdatePosition(stream, listenerMap);
-                stream.Volume = stream.Mode == VoiceReceiveMode.Local ? _localVolume : _radioVolume;
+                stream.Volume = stream.Mode == VoiceReceiveMode.Local
+                    ? _localVolume
+                    : _radioVolume * GetChannelVolume(stream.Channel);
                 stream.Fill(now, queueTarget);
             }
             catch (Exception e)

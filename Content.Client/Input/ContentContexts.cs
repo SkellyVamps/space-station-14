@@ -20,6 +20,9 @@ namespace Content.Client.Input
             common.AddFunction(ContentKeyFunctions.VoicePushToTalk);
             common.AddFunction(ContentKeyFunctions.VoiceRadioPushToTalk);
             common.AddFunction(ContentKeyFunctions.VoiceToggleRadioPanel);
+            common.AddFunction(ContentKeyFunctions.VoiceRadioPushToTalk2);
+            common.AddFunction(ContentKeyFunctions.VoiceRadioPushToTalk3);
+            common.AddFunction(ContentKeyFunctions.VoiceRadioPushToTalk4);
             common.AddFunction(ContentKeyFunctions.FocusLOOC);
             common.AddFunction(ContentKeyFunctions.FocusOOC);
             common.AddFunction(ContentKeyFunctions.FocusAdminChat);

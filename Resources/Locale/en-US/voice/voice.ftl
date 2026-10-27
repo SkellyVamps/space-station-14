@@ -73,11 +73,20 @@ ui-options-voice-unbound = unbound
 ui-options-voice-activation-threshold = Voice activation threshold
 ui-options-voice-activation-release = Voice activation hold time
 ui-options-voice-noise-gate = Noise gate
+ui-options-voice-noise-suppression = Noise suppression
+ui-options-voice-noise-suppression-hint = Removes steady background noise (fans, hum, hiss). Check it with "Test microphone".
+ui-options-voice-radio-keys-header = Extra radio keys
+ui-options-voice-radio-keys-hint = Each key talks on its own channel. Bind them in Controls under "Voice".
+ui-options-voice-radio-key2 = Radio key 2 channel
+ui-options-voice-radio-key3 = Radio key 3 channel
+ui-options-voice-radio-key4 = Radio key 4 channel
+ui-options-voice-radio-key-unset = Not set
 ui-options-voice-off = Off
 ui-options-voice-output-header = Playback
 ui-options-voice-output-volume = Voice volume
 ui-options-voice-radio-volume = Radio voice volume
 ui-options-voice-jitter-buffer = Network buffer (smoothness vs. delay)
+ui-options-voice-ducking = Lower game sounds while someone talks
 ui-options-voice-indicators = Show speaking indicators
 ui-options-voice-radio-panel = Show radio panel
 ui-options-voice-radio-panel-reset = Reset radio panel position
@@ -119,3 +128,4 @@ voice-radio-panel-no-channels = No radio channels available
 ## Top menu bar
 
 game-hud-open-voice-radio-panel-button-tooltip = Show or hide the radio panel (who is talking on the radio, which channels you hear and talk on).
+voice-radio-panel-volume-tooltip = Volume of { $channel } (middle is normal).

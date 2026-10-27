@@ -186,4 +186,57 @@ public sealed class VoiceDspTest
         VoiceProfile.Neutral.CreateProcessors(Rate, 1, list);
         Assert.That(list, Is.Empty);
     }
+
+    [Test]
+    public void NoiseSuppressorOffIsTransparent()
+    {
+        // At strength 0 the overlapping windows reconstruct the input exactly, one frame (512 samples) late.
+        var suppressor = new NoiseSuppressor(0f);
+        var input = Tone(440, Rate / 2);
+        var output = (float[]) input.Clone();
+        suppressor.Process(output);
+
+        for (var i = 1024; i < input.Length; i++)
+        {
+            Assert.That(output[i], Is.EqualTo(input[i - 512]).Within(1e-4f), $"sample {i}");
+        }
+    }
+
+    [Test]
+    public void NoiseSuppressorRemovesSteadyNoiseKeepsSpeech()
+    {
+        // Two seconds of steady hiss with a "word" (a tone) in the middle second.
+        var random = new Random(1234);
+        var length = Rate * 2;
+        var noise = new float[length];
+        for (var i = 0; i < length; i++)
+        {
+            noise[i] = (float) (random.NextDouble() * 2 - 1) * 0.02f;
+        }
+
+        var tone = Tone(300, length, 0.2f);
+        var mixed = new float[length];
+        for (var i = 0; i < length; i++)
+        {
+            var speaking = i >= Rate && i < Rate * 3 / 2;
+            mixed[i] = noise[i] + (speaking ? tone[i] : 0f);
+        }
+
+        var output = (float[]) mixed.Clone();
+        var suppressor = new NoiseSuppressor(1f);
+        for (var offset = 0; offset < length; offset += 960)
+        {
+            suppressor.Process(output.AsSpan(offset, Math.Min(960, length - offset)));
+        }
+
+        // Noise only, after the floor has settled: at least 12 dB quieter.
+        var noiseBefore = Rms(mixed.AsSpan(Rate / 2, Rate / 4));
+        var noiseAfter = Rms(output.AsSpan(Rate / 2 + 512, Rate / 4));
+        Assert.That(noiseAfter, Is.LessThan(noiseBefore / 4f));
+
+        // The word keeps most of its level.
+        var speechBefore = Rms(mixed.AsSpan(Rate + Rate / 8, Rate / 4));
+        var speechAfter = Rms(output.AsSpan(Rate + Rate / 8 + 512, Rate / 4));
+        Assert.That(speechAfter, Is.GreaterThan(speechBefore * 0.8f));
+    }
 }

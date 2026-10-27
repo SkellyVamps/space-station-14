@@ -25,11 +25,20 @@
                 <ui:OptionSlider Name="SliderActivationThreshold" Title="{Loc 'ui-options-voice-activation-threshold'}" />
                 <ui:OptionSlider Name="SliderActivationRelease" Title="{Loc 'ui-options-voice-activation-release'}" />
                 <ui:OptionSlider Name="SliderNoiseGate" Title="{Loc 'ui-options-voice-noise-gate'}" />
+                <ui:OptionSlider Name="SliderNoiseSuppression" Title="{Loc 'ui-options-voice-noise-suppression'}" />
+                <Label Text="{Loc 'ui-options-voice-noise-suppression-hint'}" StyleClasses="LabelSubText" />
+
+                <Label Text="{Loc 'ui-options-voice-radio-keys-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
+                <Label Text="{Loc 'ui-options-voice-radio-keys-hint'}" StyleClasses="LabelSubText" />
+                <ui:OptionDropDown Name="DropDownRadioKey2" Title="{Loc 'ui-options-voice-radio-key2'}" />
+                <ui:OptionDropDown Name="DropDownRadioKey3" Title="{Loc 'ui-options-voice-radio-key3'}" />
+                <ui:OptionDropDown Name="DropDownRadioKey4" Title="{Loc 'ui-options-voice-radio-key4'}" />
 
                 <Label Text="{Loc 'ui-options-voice-output-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
                 <ui:OptionSlider Name="SliderOutputVolume" Title="{Loc 'ui-options-voice-output-volume'}" />
                 <ui:OptionSlider Name="SliderRadioVolume" Title="{Loc 'ui-options-voice-radio-volume'}" />
                 <ui:OptionSlider Name="SliderJitterBuffer" Title="{Loc 'ui-options-voice-jitter-buffer'}" />
+                <ui:OptionSlider Name="SliderDucking" Title="{Loc 'ui-options-voice-ducking'}" />
                 <CheckBox Name="IndicatorsCheckBox" Text="{Loc 'ui-options-voice-indicators'}" />
                 <BoxContainer Orientation="Horizontal">
                     <CheckBox Name="RadioPanelCheckBox" Text="{Loc 'ui-options-voice-radio-panel'}" />

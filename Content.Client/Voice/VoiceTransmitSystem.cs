@@ -94,7 +94,19 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     private short[] _testDecoded = Array.Empty<short>();
 
     private bool _pttLocal;
-    private bool _pttRadio;
+
+    /// <summary>
+    /// Radio push-to-talk key held: 0 none, 1 the main radio key, 2-4 the extra radio keys.
+    /// </summary>
+    private int _pttRadio;
+
+    /// <summary>
+    /// Channel set for each extra radio key (index 2-4).
+    /// </summary>
+    private readonly string[] _radioKeyChannels = new string[5];
+
+    private float _noiseSuppression;
+    private NoiseSuppressor? _suppressor;
 
     /// <summary>
     /// Radio channel picked by the player for radio push to talk. Null uses the default channel.
@@ -130,9 +142,15 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
 
         CommandBinds.Builder
             .Bind(ContentKeyFunctions.VoicePushToTalk,
-                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, false), _ => SetPushToTalk(false, false), handle: false))
+                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 0), _ => SetPushToTalk(false, 0), handle: false))
             .Bind(ContentKeyFunctions.VoiceRadioPushToTalk,
-                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, true), _ => SetPushToTalk(false, true), handle: false))
+                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 1), _ => SetPushToTalk(false, 1), handle: false))
+            .Bind(ContentKeyFunctions.VoiceRadioPushToTalk2,
+                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 2), _ => SetPushToTalk(false, 2), handle: false))
+            .Bind(ContentKeyFunctions.VoiceRadioPushToTalk3,
+                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 3), _ => SetPushToTalk(false, 3), handle: false))
+            .Bind(ContentKeyFunctions.VoiceRadioPushToTalk4,
+                InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 4), _ => SetPushToTalk(false, 4), handle: false))
             .Register<VoiceTransmitSystem>();
 
         Subs.CVar(_cfg, CCVars.VoiceEnabled, v => _serverEnabled = v, true);
@@ -143,6 +161,10 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceExpectedLoss, v => { _expectedLoss = v; ConfigureEncoder(); }, true);
         Subs.CVar(_cfg, CCVars.VoiceInputGain, v => _inputGain = Math.Clamp(v, 0f, 8f), true);
         Subs.CVar(_cfg, CCVars.VoiceInputMode, v => _mode = (VoiceInputMode) Math.Clamp(v, 0, 1), true);
+        Subs.CVar(_cfg, CCVars.VoiceNoiseSuppression, v => _noiseSuppression = Math.Clamp(v, 0f, 1f), true);
+        Subs.CVar(_cfg, CCVars.VoiceRadioKey2Channel, v => _radioKeyChannels[2] = v, true);
+        Subs.CVar(_cfg, CCVars.VoiceRadioKey3Channel, v => _radioKeyChannels[3] = v, true);
+        Subs.CVar(_cfg, CCVars.VoiceRadioKey4Channel, v => _radioKeyChannels[4] = v, true);
         Subs.CVar(_cfg, CCVars.VoiceActivationThreshold, v => _activationThreshold = v, true);
         Subs.CVar(_cfg, CCVars.VoiceActivationRelease, v => _activationRelease = v, true);
         Subs.CVar(_cfg, CCVars.VoiceNoiseGate, v => _noiseGate = v, true);
@@ -164,7 +186,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     private void OnDisconnect(object? sender, NetDisconnectedArgs args)
     {
         _pttLocal = false;
-        _pttRadio = false;
+        _pttRadio = 0;
         _transmitting = false;
         AdminMuted = false;
         _capture.Release(this);
@@ -176,7 +198,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         if (!args.Focused)
         {
             _pttLocal = false;
-            _pttRadio = false;
+            _pttRadio = 0;
         }
     }
 
@@ -188,16 +210,19 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
 
     #region Input
 
-    private void SetPushToTalk(bool down, bool radio)
+    /// <param name="radioKey">0 for the local key, 1 for the main radio key, 2-4 for the extra radio keys.</param>
+    private void SetPushToTalk(bool down, int radioKey)
     {
         // Typing in chat or any text box must never key the microphone.
         if (down && _ui.KeyboardFocused != null)
             return;
 
-        if (radio)
-            _pttRadio = down;
-        else
+        if (radioKey == 0)
             _pttLocal = down;
+        else if (down)
+            _pttRadio = radioKey; // The last radio key pressed wins.
+        else if (_pttRadio == radioKey)
+            _pttRadio = 0;
 
         // Drop audio buffered before the key went down.
         if (down && !_transmitting)
@@ -337,7 +362,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     {
         var canTransmit = CanTransmit(out var speaker);
         var wantsAudio = _testing
-                         || canTransmit && (_mode == VoiceInputMode.VoiceActivation || _pttLocal || _pttRadio);
+                         || canTransmit && (_mode == VoiceInputMode.VoiceActivation || _pttLocal || _pttRadio != 0);
 
         if (!wantsAudio)
         {
@@ -399,16 +424,29 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         _rumble ??= new Biquad(BiquadType.HighPass, VoiceConstants.SampleRate, 80f);
         _rumble.Process(frame);
 
+        // Background noise removal. It keeps learning the noise floor while you're quiet, so it runs on every frame.
+        if (_noiseSuppression > 0.001f)
+        {
+            _suppressor ??= new NoiseSuppressor(_noiseSuppression);
+            _suppressor.Strength = _noiseSuppression;
+            _suppressor.Process(frame);
+        }
+        else
+        {
+            _suppressor = null;
+        }
+
         InputLevelDb = VoiceDsp.RmsDb(frame);
 
         // Decide whether this frame is sent.
-        var radio = _pttRadio && _radioEnabled && speaker is { RadioChannels.Count: > 0 };
+        ProtoId<RadioChannelPrototype>? radioChannel = null;
+        var radio = _pttRadio != 0 && _radioEnabled && TryGetRadioKeyChannel(speaker, out radioChannel);
         bool send;
         if (!canTransmit)
         {
             send = false;
         }
-        else if (_pttLocal || _pttRadio)
+        else if (_pttLocal || _pttRadio != 0)
         {
             send = true;
         }
@@ -463,9 +501,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         _transmitting = true;
         _transmittingRadio = radio;
 
-        _radioChannelSent = radio && SelectedRadioChannel is { } channel && speaker!.RadioChannels.Contains(channel)
-            ? channel.Id
-            : null;
+        _radioChannelSent = radio ? radioChannel?.Id : null;
 
         var msg = new MsgVoiceTransmit
         {
@@ -476,6 +512,37 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         };
 
         _net.ClientSendMessage(msg);
+    }
+
+    /// <summary>
+    /// The channel the held radio key transmits on. False if it can't transmit (no radio, or an extra key set to a
+    /// channel this character doesn't have); then the key just talks locally.
+    /// </summary>
+    /// <param name="channel">The channel, or null for the radio's default channel.</param>
+    private bool TryGetRadioKeyChannel(VoiceSpeakerComponent? speaker, out ProtoId<RadioChannelPrototype>? channel)
+    {
+        channel = null;
+        if (speaker is not { RadioChannels.Count: > 0 })
+            return false;
+
+        if (_pttRadio == 1)
+        {
+            if (SelectedRadioChannel is { } selected && speaker.RadioChannels.Contains(selected))
+                channel = selected;
+
+            return true;
+        }
+
+        var configured = _radioKeyChannels[_pttRadio];
+        if (string.IsNullOrEmpty(configured))
+            return false;
+
+        var id = new ProtoId<RadioChannelPrototype>(configured);
+        if (!speaker.RadioChannels.Contains(id))
+            return false;
+
+        channel = id;
+        return true;
     }
 
     private ProcessorChain GetChain(VoiceSpeakerComponent? speaker)

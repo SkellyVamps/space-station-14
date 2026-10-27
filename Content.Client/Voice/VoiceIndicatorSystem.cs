@@ -42,6 +42,8 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
     private readonly List<(string Channel, string Name)> _radioSpeakers = new();
     private readonly List<ProtoId<RadioChannelPrototype>> _noChannels = new();
     private readonly HashSet<string> _muted = new();
+    private readonly Dictionary<string, float> _volumeScratch = new();
+    private TimeSpan? _saveAt;
 
     private bool _showPanel;
     private bool _clientEnabled;
@@ -140,6 +142,32 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
         _cfg.SaveToFile();
     }
 
+    /// <summary>
+    /// Sets the player's volume for a radio channel (0-2, 1 = normal).
+    /// </summary>
+    public void SetChannelVolume(string channel, float volume)
+    {
+        VoicePlaybackSystem.ParseChannelVolumes(_cfg.GetCVar(CCVars.VoiceRadioChannelVolumes), _volumeScratch);
+
+        volume = MathF.Round(Math.Clamp(volume, 0f, 2f), 2);
+        if (MathF.Abs(volume - 1f) < 0.01f)
+            _volumeScratch.Remove(channel);
+        else
+            _volumeScratch[channel] = volume;
+
+        var parts = new List<string>();
+        foreach (var (id, value) in _volumeScratch)
+        {
+            parts.Add(id + "=" + value.ToString("0.##", CultureInfo.InvariantCulture));
+        }
+
+        parts.Sort(string.CompareOrdinal);
+        _cfg.SetCVar(CCVars.VoiceRadioChannelVolumes, string.Join(',', parts));
+
+        // Sliders change continuously; write the file once they settle.
+        _saveAt = _timing.RealTime + TimeSpan.FromSeconds(1);
+    }
+
     #endregion
 
     #region Radio panel
@@ -156,6 +184,12 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
     public override void FrameUpdate(float frameTime)
     {
         base.FrameUpdate(frameTime);
+
+        if (_saveAt is { } saveAt && _timing.RealTime >= saveAt)
+        {
+            _saveAt = null;
+            _cfg.SaveToFile();
+        }
 
         _radioSpeakers.Clear();
 
@@ -185,7 +219,8 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
 
         _panel.UpdateSpeakers(_radioSpeakers);
         _panel.UpdateChannels(speaker?.ListenChannels ?? _noChannels, speaker?.RadioChannels ?? _noChannels,
-            speaker?.DefaultRadioChannel, _transmit.SelectedRadioChannel, c => !IsListening(c));
+            speaker?.DefaultRadioChannel, _transmit.SelectedRadioChannel, c => !IsListening(c),
+            _playback.GetChannelVolume);
     }
 
     private void CreatePanel()
@@ -211,6 +246,7 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
         };
 
         _panel.ListenToggled += SetListening;
+        _panel.VolumeChanged += SetChannelVolume;
         _ui.WindowRoot.OnResized += PlacePanel;
         _panel.TalkChannelSelected += channel => _transmit.SelectedRadioChannel = channel;
     }

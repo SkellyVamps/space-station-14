@@ -227,6 +227,9 @@ namespace Content.Client.Options.UI.Tabs
             AddButton(ContentKeyFunctions.CycleChatChannelBackward);
             AddButton(ContentKeyFunctions.VoicePushToTalk);
             AddButton(ContentKeyFunctions.VoiceRadioPushToTalk);
+            AddButton(ContentKeyFunctions.VoiceRadioPushToTalk2);
+            AddButton(ContentKeyFunctions.VoiceRadioPushToTalk3);
+            AddButton(ContentKeyFunctions.VoiceRadioPushToTalk4);
             AddButton(ContentKeyFunctions.VoiceToggleRadioPanel);
             AddButton(ContentKeyFunctions.OpenCharacterMenu);
             AddButton(ContentKeyFunctions.OpenCraftingMenu);

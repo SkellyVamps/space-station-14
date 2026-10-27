@@ -39,6 +39,7 @@ public sealed class VoiceRadioPanel : Control
     private readonly List<ProtoId<RadioChannelPrototype>> _shownChannels = new();
     private readonly List<ProtoId<RadioChannelPrototype>> _shownListen = new();
     private readonly Dictionary<string, CheckBox> _listenBoxes = new();
+    private readonly Dictionary<string, Slider> _volumeSliders = new();
     private ProtoId<RadioChannelPrototype>? _shownDefault;
     private bool _updatingTalk;
     private bool _talkBuilt;
@@ -51,6 +52,11 @@ public sealed class VoiceRadioPanel : Control
     public event Action<bool>? ExpandedChanged;
 
     public event Action<string, bool>? ListenToggled;
+
+    /// <summary>
+    /// The player moved a channel's volume slider (0-2).
+    /// </summary>
+    public event Action<string, float>? VolumeChanged;
 
     /// <summary>
     /// The player picked the channel to talk on; null for the default channel.
@@ -225,7 +231,8 @@ public sealed class VoiceRadioPanel : Control
         List<ProtoId<RadioChannelPrototype>> talk,
         ProtoId<RadioChannelPrototype>? defaultChannel,
         ProtoId<RadioChannelPrototype>? selected,
-        Func<string, bool> isMuted)
+        Func<string, bool> isMuted,
+        Func<string, float> getVolume)
     {
         if (!ListEquals(_shownListen, listen))
             RebuildListen(listen);
@@ -236,6 +243,14 @@ public sealed class VoiceRadioPanel : Control
         foreach (var (channel, box) in _listenBoxes)
         {
             box.Pressed = !isMuted(channel);
+        }
+
+        foreach (var (channel, slider) in _volumeSliders)
+        {
+            if (!slider.Grabbed)
+                slider.SetValueWithoutEvent(getVolume(channel));
+
+            slider.Disabled = isMuted(channel);
         }
 
         // A channel picked on an earlier body may not exist on this one: fall back to the default.
@@ -256,6 +271,7 @@ public sealed class VoiceRadioPanel : Control
 
         _channelRows.RemoveAllChildren();
         _listenBoxes.Clear();
+        _volumeSliders.Clear();
 
         foreach (var protoId in channels)
         {
@@ -268,10 +284,27 @@ public sealed class VoiceRadioPanel : Control
                 ToolTip = Loc.GetString("voice-radio-panel-listen-tooltip", ("channel", name)),
             };
             box.Label.FontColorOverride = color;
+            box.HorizontalExpand = true;
             box.OnToggled += args => ListenToggled?.Invoke(channel, args.Pressed);
 
+            var slider = new Slider
+            {
+                MinValue = 0f,
+                MaxValue = 2f,
+                Value = 1f,
+                MinWidth = 70,
+                VerticalAlignment = VAlignment.Center,
+                ToolTip = Loc.GetString("voice-radio-panel-volume-tooltip", ("channel", name)),
+            };
+            slider.OnValueChanged += range => VolumeChanged?.Invoke(channel, range.Value);
+
             _listenBoxes[channel] = box;
-            _channelRows.AddChild(box);
+            _volumeSliders[channel] = slider;
+            _channelRows.AddChild(new BoxContainer
+            {
+                Orientation = BoxContainer.LayoutOrientation.Horizontal,
+                Children = { box, slider },
+            });
         }
 
         _noChannels.Visible = channels.Count == 0;

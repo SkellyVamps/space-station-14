@@ -26,6 +26,12 @@ time without restarting.
 
 Talking into your radio is also heard, a little more quietly, by people near you.
 
+### More radio keys
+
+Options -> Voice -> *Extra radio keys* gives you up to three more radio keys, each set to its own channel (for
+example key 2 = Security, key 3 = Engineering). Bind them in Options -> Controls ("Voice: push to talk (radio key 2)"
+and so on). A key set to a channel your character doesn't have just talks normally.
+
 ## Intercoms and handheld radios
 
 * An intercom or handheld radio with its **speaker** on plays radio voice out loud. Everyone nearby hears it from the
@@ -44,6 +50,7 @@ including as an observer.
 * Press **+** to open its settings:
   * **Talk on** picks the channel the radio key transmits on (or your headset's default). It says **None** when you
     have nothing to talk into (no headset, observers, creatures).
+  * The slider next to each channel sets its volume (middle is normal).
   * **Listen** lists the channels you can hear, the same ones you have in text chat (every channel as an observer).
     Untick a channel to stop hearing voice on it. Text messages on that channel still show in chat.
 
@@ -77,7 +84,8 @@ off completely.
 | "No microphone could be opened" | Check it's plugged in and selected. On Windows/macOS, allow the game (or the SS14 launcher) to use the microphone in the system privacy settings. Close other apps holding it exclusively. |
 | Others can't hear me | Use *Test microphone*. Check the level meter moves. Make sure you're not in vacuum, behind a wall, or muted (Options -> Voice shows if an admin muted you). Dead characters can't talk. |
 | I'm too quiet / clipping | Adjust *Microphone volume*. |
-| Background noise gets through | Raise *Noise gate* or the voice activation threshold, or use push to talk. |
+| Background noise gets through | Turn up *Noise suppression*, raise *Noise gate* or the voice activation threshold, or use push to talk. |
+| Hard to hear people over the game | Turn up *Lower game sounds while someone talks*. |
 | Choppy voices | Raise *Network buffer*. |
 | Echo | Use headphones. |
 | Voice chat unavailable | The server may have voice disabled. |

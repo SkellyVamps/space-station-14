@@ -310,6 +310,43 @@ public sealed partial class CCVars
         CVarDef.Create("voice.noise_gate_db", -60f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
+    ///     How strongly steady background noise (fans, hum, hiss) is removed from the microphone. 0 = off, 1 = strongest.
+    /// </summary>
+    public static readonly CVarDef<float> VoiceNoiseSuppression =
+        CVarDef.Create("voice.noise_suppression", 0f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     How much quieter other game sounds get while someone is heard talking. 0 = off, 0.9 = almost silent.
+    /// </summary>
+    public static readonly CVarDef<float> VoiceDucking =
+        CVarDef.Create("voice.ducking", 0f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Volume per radio channel, as "Channel=volume" pairs separated by commas (e.g. "Common=0.5,Security=1.5").
+    ///     Channels not listed play at 1.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceRadioChannelVolumes =
+        CVarDef.Create("voice.radio_channel_volumes", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Radio channel the second radio push-to-talk key transmits on. Empty = not set.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceRadioKey2Channel =
+        CVarDef.Create("voice.radio_key2_channel", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Radio channel the third radio push-to-talk key transmits on. Empty = not set.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceRadioKey3Channel =
+        CVarDef.Create("voice.radio_key3_channel", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Radio channel the fourth radio push-to-talk key transmits on. Empty = not set.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceRadioKey4Channel =
+        CVarDef.Create("voice.radio_key4_channel", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
     ///     Whether to show speaking indicators above characters.
     /// </summary>
     public static readonly CVarDef<bool> VoiceShowIndicators =

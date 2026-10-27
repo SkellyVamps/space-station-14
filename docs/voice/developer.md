@@ -234,3 +234,13 @@ device, radio filter, acoustics from the device to the listener (`voice.loudspea
 Speaking (not into a radio) near an enabled, powered `RadioMicrophone` within its `listenRange` that can acoustically
 hear you transmits on its `broadcastChannel` with the microphone as radio source, one microphone per channel.
 Routes are recomputed every `voice.audibility_interval` like local recipients.
+
+## Client audio processing
+
+Microphone chain (`VoiceTransmitSystem.ProcessFrame`): input gain, 80 Hz high-pass, `NoiseSuppressor`
+(`voice.noise_suppression`, spectral subtraction with a tracked per-bin noise floor, 10.7 ms latency), level
+meter / voice activation, noise gate, the gameplay chain, limiter, Opus.
+
+`VoiceDuckingSystem` lowers other game sounds while voice is audible (`voice.ducking`): it runs after the engine's
+`AudioSystem` and offsets every playing `AudioComponent`'s volume; the engine restores them on its next update.
+Per-channel radio volume (`voice.radio_channel_volumes`) multiplies the radio volume on the client.
