@@ -43,6 +43,11 @@
   id: MobGingerbread
   name: Urist McCookie
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesGingerbread ]
+    profile:
+      formant: 1
+      brightness: 0.2
   - type: Butcherable
     spawned:
     - id: FoodBakedCookie

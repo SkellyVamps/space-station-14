@@ -91,6 +91,11 @@
   name: shambling abomination # no more Urist McHorror
   description: Its gaping maw open, an ever-expanding, all consuming mass of flesh stands before you.
   components:
+  - type: VoiceModifier
+    filters: [ SpeciesHorror ]
+    profile:
+      pitch: -1
+      formant: -2
   - type: HumanoidProfile
     examinable: false
   # it speaks like a SPOOKY MONSTER!!!!

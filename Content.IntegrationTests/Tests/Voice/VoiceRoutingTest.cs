@@ -441,6 +441,61 @@ public sealed class VoiceRoutingTest : GameTest
     }
 
     [Test]
+    public async Task SpeciesMasksAndStatusChangeVoice()
+    {
+        await Setup();
+
+        await Pair.Server.WaitAssertion(() =>
+        {
+            var profiles = Ent.System<VoiceProfileSystem>();
+            var coords = Ent.GetComponent<TransformComponent>(_speaker).Coordinates;
+
+            // Every species except humans (the baseline) sounds a bit different.
+            foreach (var mob in new[] { "MobVulpkanin", "MobGingerbread", "MobHorror" })
+            {
+                var uid = Ent.SpawnAtPosition(mob, coords);
+                var (profile, filters) = profiles.Compose(uid);
+                Assert.That(!profile.IsNeutral || filters.Count > 0, mob);
+                Ent.DeleteEntity(uid);
+            }
+
+            var inventory = Ent.System<InventorySystem>();
+            var speaker = Ent.GetComponent<VoiceSpeakerComponent>(_speaker);
+
+            foreach (var (mask, filter) in new[]
+                     {
+                         ("ClothingMaskSterile", "ClothMask"),
+                         ("ClothingMaskPlague", "PlagueMask"),
+                         ("ClothingMaskFox", "HardMask"),
+                     })
+            {
+                var item = Ent.SpawnAtPosition(mask, coords);
+                Assert.That(inventory.TryEquip(_speaker, item, "mask", silent: true, force: true), mask);
+                Assert.That(speaker.Filters.Select(f => f.Id), Does.Contain(filter), mask);
+                Assert.That(inventory.TryUnequip(_speaker, "mask", silent: true, force: true), mask);
+                Ent.DeleteEntity(item);
+            }
+
+            var clown = Ent.SpawnAtPosition("ClothingMaskClown", coords);
+            var before = speaker.Profile;
+            Assert.That(inventory.TryEquip(_speaker, clown, "mask", silent: true, force: true));
+            Assert.That(speaker.Profile.Nasality, Is.GreaterThan(before.Nasality), "clown masks honk");
+            Assert.That(inventory.TryUnequip(_speaker, "mask", silent: true, force: true));
+
+            // Drunk and shaking change the voice; recording it for impersonation ignores that.
+            var plain = profiles.Compose(_speaker).Profile;
+            Assert.That(Ent.System<Content.Shared.StatusEffectNew.StatusEffectsSystem>()
+                .TryAddStatusEffectDuration(_speaker, "StatusEffectDrunk", TimeSpan.FromMinutes(1)));
+            Ent.EnsureComponent<Content.Shared.Jittering.JitteringComponent>(_speaker);
+
+            var affected = profiles.Compose(_speaker).Profile;
+            Assert.That(affected.Tremble, Is.GreaterThan(plain.Tremble));
+            Assert.That(affected.Brightness, Is.LessThan(plain.Brightness));
+            Assert.That(profiles.GetInnateVoice(_speaker).Profile, Is.EqualTo(plain));
+        });
+    }
+
+    [Test]
     public async Task CharacterProfilesDiffer()
     {
         // Scenario G: different characters of the same human can have different voices.

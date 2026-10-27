@@ -146,6 +146,11 @@
   id: MobVulpkanin
   name: Urist McArfArf
   components:
+  - type: VoiceModifier
+    profile:
+      formant: -0.3
+      brightness: -0.1
+      roughness: 0.15
   - type: DamageVisuals
     damageOverlayGroups:
       Brute:

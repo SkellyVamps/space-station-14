@@ -252,3 +252,10 @@ Per-channel radio volume (`voice.radio_channel_volumes`) multiplies the radio vo
 prototypes (`Resources/Prototypes/Voice/voice_presets.yml`); add one with a localized name and a profile. Voice codes
 are `VOICE1:` followed by the values separated by `;`; missing trailing values read as 0, so new parameters stay
 compatible with old codes.
+
+## Status effects
+
+`VoiceStatusSystem` adds profile offsets from the speaker's state when voices are composed (every 0.5 s): drunk and
+drowsy status effects, `JitteringComponent`, stamina damage, respirator saturation below its suffocation threshold,
+and body temperature within 25 K of the cold damage threshold. Skipped for `InnateOnly` (impersonation recordings).
+Add new states there, or subscribe to `VoiceModifiersEvent` in your own system.

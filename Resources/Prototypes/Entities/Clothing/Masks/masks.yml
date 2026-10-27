@@ -198,6 +198,10 @@
   name: clown wig and mask
   description: A true prankster's facial attire. A clown is incomplete without his wig and mask.
   components:
+  - type: VoiceModifier
+    profile:
+      pitch: 0.5
+      nasality: 0.45
   - type: Foldable
     canFoldInsideContainer: true
   - type: FoldableClothing
@@ -268,6 +272,8 @@
   name: joy mask
   description: Express your happiness or hide your sorrows with this laughing face with crying tears of joy cutout.
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/joy.rsi
   - type: Clothing
@@ -304,6 +310,8 @@
   name: sterile mask
   description: A sterile mask designed to help prevent the spread of diseases.
   components:
+  - type: VoiceModifier
+    filters: [ ClothMask ]
   - type: Sprite
     sprite: Clothing/Mask/sterile.rsi
   - type: Clothing
@@ -351,6 +359,8 @@
   name: plague doctor mask
   description: A bad omen.
   components:
+  - type: VoiceModifier
+    filters: [ PlagueMask ]
   - type: Sprite
     sprite: Clothing/Mask/plaguedoctormask.rsi
   - type: Clothing
@@ -481,6 +491,8 @@
   name: rat mask
   description: A mask of a rat that looks like a rat. Perhaps they will take you for a fellow rat.
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/rat.rsi
   - type: Clothing
@@ -501,6 +513,8 @@
   name: fox mask
   description: What does the fox say?
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/fox.rsi
   - type: Clothing
@@ -517,6 +531,8 @@
   name: bee mask
   description: For the queen!
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/bee.rsi
   - type: Clothing
@@ -533,6 +549,8 @@
   name: bear mask
   description: I'm a cloudy, cloudy, cloudy, I'm not a bear at all.
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/bear.rsi
   - type: Clothing
@@ -549,6 +567,8 @@
   name: raven mask
   description: Where I am, death... or glitter.
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/raven.rsi
   - type: Clothing
@@ -565,6 +585,8 @@
   name: jackal mask
   description: It is better not to turn your back to the owner of the mask, it may bite.
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/jackal.rsi
   - type: Clothing
@@ -581,6 +603,8 @@
   name: bat mask
   description: A bloodsucker by night, and a cute, blinded beast by day.
   components:
+  - type: VoiceModifier
+    filters: [ HardMask ]
   - type: Sprite
     sprite: Clothing/Mask/bat.rsi
   - type: Clothing
@@ -597,6 +621,8 @@
   name: neck gaiter
   description: Stylish neck gaiter for your neck, can protect from the cosmic wind?...
   components:
+  - type: VoiceModifier
+    filters: [ ClothMask ]
   - type: Sprite
     sprite: Clothing/Mask/neckgaiter.rsi
   - type: Clothing
@@ -698,6 +724,8 @@
   name: ninja mask
   description: A close-fitting nano-enhanced mask that acts both as an air filter and a post-modern fashion statement.
   components:
+  - type: VoiceModifier
+    filters: [ ClothMask ]
   - type: Sprite
     sprite: Clothing/Mask/ninja.rsi
   - type: Clothing

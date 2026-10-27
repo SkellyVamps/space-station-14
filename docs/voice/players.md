@@ -74,7 +74,16 @@ character keeps their own voice. Species add their own touch (a lizard's slight 
 * **Copy code** / **Paste code** turn a voice into a short piece of text (`VOICE1:...`) you can paste into another
   character or send to a friend.
 
-In game, masks, helmets and some equipment change how you sound, and some devices can disguise your voice.
+In game, how you sound also depends on:
+
+* **Your species**: lizards hiss a little, moths flutter, Vox are sharp, Vulpkanin growl slightly, Gingerbread are
+  light and crumbly, and so on. Humans are the baseline.
+* **What's over your mouth**: gas and breath masks, surgical masks and gaiters, hard face masks (animal masks, Joy),
+  the plague doctor's beak, sealed helmets, muzzles. A clown mask makes you a bit nasal. Pulling a mask down removes
+  the effect.
+* **How you're doing**: drunk (slurred), drowsy, shaking, out of breath, suffocating or freezing (shivering) all
+  change your voice while they last.
+* Some devices can disguise your voice.
 
 ## Muting people
 
