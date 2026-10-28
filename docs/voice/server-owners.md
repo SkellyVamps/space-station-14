@@ -101,7 +101,7 @@ All CVars are in `Content.Shared/CCVar/CCVars.Voice.cs`. Server ones (put them i
 | `voice.field_max_age` | `1` | Seconds before an acoustic field is rebuilt anyway (pressure changes) |
 | `voice.radio_enabled` | `true` | Voice over radio |
 | `voice.loudspeaker_gain` | `0.8` | Volume of radio voice played out loud by intercoms and handheld radios (0 = off) |
-| `voice.radio_microphones` | `true` | Intercoms and handheld radios with their microphone on broadcast nearby voice |
+| `voice.radio_microphones` | `true` | Handheld radios with their microphone on broadcast nearby voice (intercoms use their hold-to-talk button) |
 | `voice.radio_local_gain` | `0.6` | How loud people near you hear you talking into your radio (0 = silent) |
 | `voice.radio_filter` | `RadioDefault` | `voiceFilter` prototype for radio playback |
 | `voice.ghosts_hear_living` | `true` | Ghosts (with ghost hearing on) hear living players nearby |

@@ -233,7 +233,13 @@ device, radio filter, acoustics from the device to the listener (`voice.loudspea
 
 Speaking (not into a radio) near an enabled, powered `RadioMicrophone` within its `listenRange` that can acoustically
 hear you transmits on its `broadcastChannel` with the microphone as radio source, one microphone per channel.
-Routes are recomputed every `voice.audibility_interval` like local recipients.
+Routes are recomputed every `voice.audibility_interval` like local recipients. Intercoms are skipped here.
+
+Intercoms transmit voice only while their window's transmit button is held: the client
+(`VoiceTransmitSystem.SetDeviceTransmit`, from `IntercomBoundUserInterface`) sends with `VoiceTransmitFlags.Device` and
+the intercom's `NetEntity`, needing no push to talk key. The server accepts it only if that intercom has its UI open by
+the speaker, is tuned to a channel and is powered (`VoiceSystem.GetOperatedIntercom`), and sends it on a route keyed by
+the intercom with it as the radio source. `Device` and `Radio` together are rejected.
 
 ## Client audio processing
 

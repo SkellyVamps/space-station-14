@@ -18,6 +18,12 @@ public enum VoiceTransmitFlags : byte
     /// Last packet of a talk spurt (push to talk released / voice activation ended).
     /// </summary>
     EndOfSpurt = 1 << 1,
+
+    /// <summary>
+    /// Talking into a device the speaker is operating (holding an intercom's transmit button), see
+    /// <see cref="MsgVoiceTransmit.Device"/>. Not combined with <see cref="Radio"/>.
+    /// </summary>
+    Device = 1 << 2,
 }
 
 /// <summary>
@@ -45,6 +51,12 @@ public sealed class MsgVoiceTransmit : NetMessage
     public string? RadioChannel;
 
     /// <summary>
+    /// The device talked into when <see cref="VoiceTransmitFlags.Device"/> is set. The server checks the speaker is
+    /// actually operating it.
+    /// </summary>
+    public NetEntity Device;
+
+    /// <summary>
     /// Opus payload. May be empty on an <see cref="VoiceTransmitFlags.EndOfSpurt"/> packet.
     /// </summary>
     public byte[] Payload = Array.Empty<byte>();
@@ -61,6 +73,9 @@ public sealed class MsgVoiceTransmit : NetMessage
                 throw new InvalidOperationException("Radio channel ID too long.");
         }
 
+        if ((Flags & VoiceTransmitFlags.Device) != 0)
+            Device = new NetEntity(buffer.ReadInt32());
+
         Payload = VoiceWire.ReadPayload(buffer);
     }
 
@@ -75,6 +90,9 @@ public sealed class MsgVoiceTransmit : NetMessage
             if (RadioChannel != null)
                 buffer.Write(RadioChannel);
         }
+
+        if ((Flags & VoiceTransmitFlags.Device) != 0)
+            buffer.Write(Device.Id);
 
         VoiceWire.WritePayload(buffer, Payload);
     }

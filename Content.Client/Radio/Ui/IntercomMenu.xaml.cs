@@ -17,6 +17,11 @@ public sealed partial class IntercomMenu : FancyWindow
     public event Action<bool>? OnSpeakerPressed;
     public event Action<string>? OnChannelSelected;
 
+    /// <summary>
+    /// The transmit button was pressed (true) or let go (false).
+    /// </summary>
+    public event Action<bool>? OnTransmitHeld;
+
     private readonly List<string> _channels = new();
 
     public IntercomMenu()
@@ -26,6 +31,8 @@ public sealed partial class IntercomMenu : FancyWindow
 
         MicButton.OnPressed += args => OnMicPressed?.Invoke(args.Button.Pressed);
         SpeakerButton.OnPressed += args => OnSpeakerPressed?.Invoke(args.Button.Pressed);
+        TransmitButton.OnButtonDown += _ => OnTransmitHeld?.Invoke(true);
+        TransmitButton.OnButtonUp += _ => OnTransmitHeld?.Invoke(false);
     }
 
     public void Update(Entity<IntercomComponent> entity)
@@ -36,6 +43,7 @@ public sealed partial class IntercomMenu : FancyWindow
         MicButton.Disabled = entity.Comp.SupportedChannels.Count == 0;
         SpeakerButton.Disabled = entity.Comp.SupportedChannels.Count == 0;
         ChannelOptions.Disabled = entity.Comp.SupportedChannels.Count == 0;
+        TransmitButton.Disabled = entity.Comp.CurrentChannel == null;
 
         ChannelOptions.Clear();
         _channels.Clear();

@@ -12,6 +12,7 @@ using Content.Shared.Inventory;
 using Content.Shared.Mind;
 using Content.Shared.Players;
 using Content.Shared.Radio;
+using Content.Shared.Radio.Components;
 using Content.Shared.Speech.EntitySystems;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
@@ -63,6 +64,19 @@ public sealed class VoiceRoutingTest : GameTest
   - type: IntrinsicRadioReceiver
   - type: ActiveRadio
     channels: [ Handheld ]
+
+- type: entity
+  id: VoiceTestIntercom
+  components:
+  - type: Intercom
+    requiresPower: false
+    currentChannel: Common
+    supportedChannels: [ Common ]
+  - type: TelecomExempt
+  - type: UserInterface
+    interfaces:
+      enum.IntercomUiKey.Key:
+        type: IntercomBoundUserInterface
 ";
 
     public override PoolSettings PoolSettings => new() { DummyTicker = false, Connected = true, Dirty = true };
@@ -136,13 +150,16 @@ public sealed class VoiceRoutingTest : GameTest
         await RunTicksSync(10);
     }
 
-    private async Task Speak(ICommonSession session, bool radio = false, ushort? seq = null)
+    private async Task Speak(ICommonSession session, bool radio = false, ushort? seq = null, EntityUid? device = null)
     {
         await Pair.Server.WaitPost(() =>
         {
             Ent.System<VoiceSystem>().HandleTransmit(session, new MsgVoiceTransmit
             {
-                Flags = radio ? VoiceTransmitFlags.Radio : VoiceTransmitFlags.None,
+                Flags = radio ? VoiceTransmitFlags.Radio
+                    : device != null ? VoiceTransmitFlags.Device
+                    : VoiceTransmitFlags.None,
+                Device = device is { } d ? Ent.GetNetEntity(d) : NetEntity.Invalid,
                 // Counting up like a real client; random numbers occasionally land in the "too old" range.
                 Sequence = seq ?? _nextSequence++,
                 Payload = _opusFrame,
@@ -393,6 +410,46 @@ public sealed class VoiceRoutingTest : GameTest
         var last = Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value;
         Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Radio));
         Assert.That(last.Channel, Is.EqualTo("Handheld"));
+    }
+
+    [Test]
+    public async Task IntercomTransmitButtonBroadcasts()
+    {
+        // The listener is far away with a Common receiver; the speaker has no radio of their own.
+        await Setup("VoiceTestRadioMob");
+
+        EntityUid intercom = default;
+        await Pair.Server.WaitPost(() =>
+        {
+            Ent.System<SharedTransformSystem>().SetMapCoordinates(_listener,
+                new MapCoordinates(new Vector2(200, 200), Ent.GetComponent<TransformComponent>(_speaker).MapID));
+            Ent.RemoveComponent<IntrinsicRadioTransmitterComponent>(_speaker);
+
+            intercom = Ent.SpawnAtPosition("VoiceTestIntercom", new EntityCoordinates(_grid.Owner, new Vector2(4.5f, 0.5f)));
+        });
+        await RunTicksSync(10);
+
+        var before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before), "plain talking next to an intercom isn't broadcast");
+
+        await Speak(_dummy, device: intercom);
+        Assert.That(ClientReceived, Is.EqualTo(before), "holding transmit needs the intercom's window open");
+
+        await Pair.Server.WaitPost(() =>
+            Ent.System<SharedUserInterfaceSystem>().OpenUi(intercom, IntercomUiKey.Key, _speaker));
+        await RunTicksSync(5);
+        Assert.That(Ent.System<SharedUserInterfaceSystem>().IsUiOpen(intercom, IntercomUiKey.Key, _speaker));
+
+        await Speak(_dummy, device: intercom);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "holding transmit broadcasts on the intercom's channel");
+
+        var last = Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value;
+        Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Radio));
+        Assert.That(last.Channel, Is.EqualTo("Common"));
+
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "letting go stops it, even with the window open");
     }
 
     [Test]

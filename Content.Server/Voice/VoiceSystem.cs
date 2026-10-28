@@ -7,6 +7,7 @@ using Content.Shared.Ghost;
 using Content.Shared.Ghost.Components;
 using Content.Shared.Interaction;
 using Content.Shared.Radio;
+using Content.Shared.Power.EntitySystems;
 using Content.Shared.Radio.Components;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
@@ -56,6 +57,8 @@ public sealed partial class VoiceSystem : EntitySystem
     [Dependency] private VoiceCreatureSystem _creature = default!;
     [Dependency] private SharedTransformSystem _xform = default!;
     [Dependency] private SharedInteractionSystem _interaction = default!;
+    [Dependency] private SharedUserInterfaceSystem _ui = default!;
+    [Dependency] private SharedPowerReceiverSystem _power = default!;
 
     /// <summary>
     /// How long after its last packet a speaker keeps getting its recipients refreshed.
@@ -285,12 +288,65 @@ public sealed partial class VoiceSystem : EntitySystem
         var radio = (msg.Flags & VoiceTransmitFlags.Radio) != 0 && _radioEnabled && !speakerComp.Ghost;
         var endOfSpurt = (msg.Flags & VoiceTransmitFlags.EndOfSpurt) != 0;
 
-        SendLocal(session, state, speaker, speakerComp, msg, radio ? _radioLocalGain : 1f, endOfSpurt);
+        // Talking into an intercom: only if they're really at it, with its window open.
+        var device = (msg.Flags & VoiceTransmitFlags.Device) != 0 && _radioEnabled && !speakerComp.Ghost
+            ? GetOperatedIntercom(speaker, msg.Device)
+            : null;
+
+        // Speaking into a radio or intercom is quieter for the people around.
+        SendLocal(session, state, speaker, speakerComp, msg, radio || device != null ? _radioLocalGain : 1f, endOfSpurt);
 
         if (radio)
             SendRadio(session, state, speaker, speakerComp, msg, now, endOfSpurt);
+        else if (device is { } intercom)
+            SendIntercom(session, state, speaker, intercom, msg, now, endOfSpurt);
+        else if (endOfSpurt && (msg.Flags & VoiceTransmitFlags.Device) != 0
+                 && TryGetEntity(msg.Device, out var closed)
+                 && state.Microphones.TryGetValue(closed.Value, out var closedRoute))
+            SendOnRoute(closedRoute, session, msg, now, endOfSpurt); // Window closed as they let go: still end it.
         else if (_radioEnabled && _radioMicrophones && !speakerComp.Ghost)
             SendMicrophones(session, state, speaker, msg, now, endOfSpurt);
+    }
+
+    /// <summary>
+    /// The intercom <paramref name="speaker"/> is holding the transmit button of: it must exist, have power, be
+    /// tuned to a channel, and have its window open by them (which also means they are within reach).
+    /// </summary>
+    private Entity<IntercomComponent>? GetOperatedIntercom(EntityUid speaker, NetEntity netDevice)
+    {
+        if (!TryGetEntity(netDevice, out var device)
+            || !TryComp(device, out IntercomComponent? intercom)
+            || intercom.CurrentChannel == null
+            || !_ui.IsUiOpen(device.Value, IntercomUiKey.Key, speaker)
+            || intercom.RequiresPower && !_power.IsPowered(device.Value))
+        {
+            return null;
+        }
+
+        return (device.Value, intercom);
+    }
+
+    private void SendIntercom(ICommonSession session, SpeakerState state, EntityUid speaker,
+        Entity<IntercomComponent> intercom, MsgVoiceTransmit msg, TimeSpan now, bool endOfSpurt)
+    {
+        var channel = intercom.Comp.CurrentChannel!.Value;
+
+        if (!state.Microphones.TryGetValue(intercom.Owner, out var route))
+        {
+            route = new RadioRoute { StreamId = AllocateStreamId() };
+            state.Microphones[intercom.Owner] = route;
+        }
+
+        // Retuned since last time, or due a refresh.
+        if (route.Channel != channel || now - route.Computed > _interval)
+        {
+            route.Channel = channel;
+            route.Computed = now;
+            ComputeRoute(route, intercom.Owner, session, speaker);
+        }
+
+        // Not marked active: that would make it pick up their ordinary speech too.
+        SendOnRoute(route, session, msg, now, endOfSpurt);
     }
 
     /// <summary>
@@ -331,6 +387,12 @@ public sealed partial class VoiceSystem : EntitySystem
         if (msg.RadioChannel != null && (msg.Flags & VoiceTransmitFlags.Radio) == 0)
         {
             reason = "channel without radio flag";
+            return false;
+        }
+
+        if ((msg.Flags & VoiceTransmitFlags.Device) != 0 && (msg.Flags & VoiceTransmitFlags.Radio) != 0)
+        {
+            reason = "radio and device at once";
             return false;
         }
 
@@ -479,7 +541,9 @@ public sealed partial class VoiceSystem : EntitySystem
             _microphoneCandidates.Clear();
             foreach (var mic in _microphoneScratch)
             {
+                // Intercoms only transmit voice while someone holds their transmit button.
                 if (mic.Owner == speaker
+                    || HasComp<IntercomComponent>(mic.Owner)
                     || Vector2.Distance(speakerPos.Map.Position, _xform.GetMapCoordinates(mic.Owner).Position) > mic.Comp.ListenRange
                     || mic.Comp.UnobstructedRequired && !_interaction.InRangeUnobstructed(speaker, mic.Owner, 0)
                     || !_audibility.TryGetAudibility(speakerPos, GetPosition(mic.Owner), out var gain, out _)

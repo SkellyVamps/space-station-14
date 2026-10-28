@@ -1,3 +1,4 @@
+using Content.Client.Voice;
 using Content.Shared.Radio;
 using Content.Shared.Radio.Components;
 using JetBrains.Annotations;
@@ -40,6 +41,23 @@ public sealed class IntercomBoundUserInterface : BoundUserInterface
         {
             SendMessage(new SelectIntercomChannelMessage(channel));
         };
+        _menu.OnTransmitHeld += held =>
+        {
+            var voice = EntMan.System<VoiceTransmitSystem>();
+            if (held)
+                voice.SetDeviceTransmit(EntMan.GetNetEntity(Owner));
+            else
+                voice.ReleaseDeviceTransmit(EntMan.GetNetEntity(Owner));
+        };
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+
+        // Closing the window (or walking away) lets go of the button.
+        if (disposing && EntMan.TrySystem<VoiceTransmitSystem>(out var voice))
+            voice.ReleaseDeviceTransmit(EntMan.GetNetEntity(Owner));
     }
 
     public void Update(Entity<IntercomComponent> ent)

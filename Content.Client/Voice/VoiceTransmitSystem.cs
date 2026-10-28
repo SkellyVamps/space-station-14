@@ -70,6 +70,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     private bool _transmitting;
     private bool _transmittingRadio;
     private string? _radioChannelSent;
+    private NetEntity? _deviceSent;
     private TimeSpan _vadHoldUntil;
 
     // Settings.
@@ -101,6 +102,11 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     private int _pttRadio;
 
     /// <summary>
+    /// Device whose transmit button is held (an intercom), or null.
+    /// </summary>
+    private NetEntity? _deviceTransmit;
+
+    /// <summary>
     /// Channel set for each extra radio key (index 2-4).
     /// </summary>
     private readonly string[] _radioKeyChannels = new string[5];
@@ -123,7 +129,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     /// </summary>
     public bool Transmitting => _transmitting;
 
-    public bool TransmittingRadio => _transmitting && _transmittingRadio;
+    public bool TransmittingRadio => _transmitting && (_transmittingRadio || _deviceSent != null);
 
     /// <summary>
     /// Set when an admin has voice muted us.
@@ -187,6 +193,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     {
         _pttLocal = false;
         _pttRadio = 0;
+        _deviceTransmit = null;
         _transmitting = false;
         AdminMuted = false;
         _capture.Release(this);
@@ -199,6 +206,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         {
             _pttLocal = false;
             _pttRadio = 0;
+            _deviceTransmit = null;
         }
     }
 
@@ -227,6 +235,27 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         // Drop audio buffered before the key went down.
         if (down && !_transmitting)
             _capture.Flush();
+    }
+
+    /// <summary>
+    /// Talks into <paramref name="device"/> (an intercom) while its transmit button is held; null when released.
+    /// Works like push to talk on its own, no key needed.
+    /// </summary>
+    public void SetDeviceTransmit(NetEntity? device)
+    {
+        if (device != null && _deviceTransmit == null && !_transmitting)
+            _capture.Flush();
+
+        _deviceTransmit = device;
+    }
+
+    /// <summary>
+    /// Releases the transmit button of <paramref name="device"/> if it is the one held.
+    /// </summary>
+    public void ReleaseDeviceTransmit(NetEntity device)
+    {
+        if (_deviceTransmit == device)
+            _deviceTransmit = null;
     }
 
     #endregion
@@ -362,7 +391,8 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     {
         var canTransmit = CanTransmit(out var speaker);
         var wantsAudio = _testing
-                         || canTransmit && (_mode == VoiceInputMode.VoiceActivation || _pttLocal || _pttRadio != 0);
+                         || canTransmit && (_mode == VoiceInputMode.VoiceActivation || _pttLocal || _pttRadio != 0
+                                            || _deviceTransmit != null);
 
         if (!wantsAudio)
         {
@@ -439,14 +469,17 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         InputLevelDb = VoiceDsp.RmsDb(frame);
 
         // Decide whether this frame is sent.
+        // A held device button wins over the radio keys: you're talking into it.
+        var device = _radioEnabled ? _deviceTransmit : null;
         ProtoId<RadioChannelPrototype>? radioChannel = null;
-        var radio = _pttRadio != 0 && _radioEnabled && TryGetRadioKeyChannel(speaker, out radioChannel);
+        var radio = device == null && _pttRadio != 0 && _radioEnabled
+                    && TryGetRadioKeyChannel(speaker, out radioChannel);
         bool send;
         if (!canTransmit)
         {
             send = false;
         }
-        else if (_pttLocal || _pttRadio != 0)
+        else if (_pttLocal || _pttRadio != 0 || _deviceTransmit != null)
         {
             send = true;
         }
@@ -498,16 +531,25 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         if (!send)
             return;
 
+        var channelId = radio ? radioChannel?.Id : null;
+
+        // Switched between talking, radio and a device mid-sentence: finish the old one so its listeners hear it end.
+        if (_transmitting && (radio != _transmittingRadio || channelId != _radioChannelSent || device != _deviceSent))
+            EndTransmission();
+
         _transmitting = true;
         _transmittingRadio = radio;
-
-        _radioChannelSent = radio ? radioChannel?.Id : null;
+        _radioChannelSent = channelId;
+        _deviceSent = device;
 
         var msg = new MsgVoiceTransmit
         {
-            Flags = radio ? VoiceTransmitFlags.Radio : VoiceTransmitFlags.None,
+            Flags = radio ? VoiceTransmitFlags.Radio
+                : device != null ? VoiceTransmitFlags.Device
+                : VoiceTransmitFlags.None,
             Sequence = _sequence++,
             RadioChannel = _radioChannelSent,
+            Device = device ?? NetEntity.Invalid,
             Payload = _packet.AsSpan(0, length).ToArray(),
         };
 
@@ -579,9 +621,12 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         {
             _net.ClientSendMessage(new MsgVoiceTransmit
             {
-                Flags = VoiceTransmitFlags.EndOfSpurt | (_transmittingRadio ? VoiceTransmitFlags.Radio : 0),
+                Flags = VoiceTransmitFlags.EndOfSpurt
+                        | (_transmittingRadio ? VoiceTransmitFlags.Radio : 0)
+                        | (_deviceSent != null ? VoiceTransmitFlags.Device : 0),
                 Sequence = _sequence++,
                 RadioChannel = _transmittingRadio ? _radioChannelSent : null,
+                Device = _deviceSent ?? NetEntity.Invalid,
             });
         }
 
