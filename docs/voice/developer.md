@@ -228,7 +228,7 @@ for example).
 
 Radio routing mirrors text radio (`VoiceRadioSystem.CollectListeners`). Receivers that belong to a player (headset,
 intrinsic radio) get `VoiceReceiveMode.Radio`; enabled `RadioSpeaker` devices are collected separately, and each player
-without their own receiver gets the loudest such device near them as `VoiceReceiveMode.Loudspeaker`: positional at the
+near one (headset or not) gets the loudest such device near them as `VoiceReceiveMode.Loudspeaker`: positional at the
 device, radio filter, acoustics from the device to the listener (`voice.loudspeaker_gain`).
 
 Speaking (not into a radio) near an enabled, powered `RadioMicrophone` within its `listenRange` that can acoustically

@@ -35,7 +35,8 @@ and so on). A key set to a channel your character doesn't have just talks normal
 ## Intercoms and handheld radios
 
 * An intercom or handheld radio with its **speaker** on plays radio voice out loud. Everyone nearby hears it from the
-  device, through walls and doors like normal speech, with the radio sound.
+  device, through walls and doors like normal speech, with the radio sound, whether or not they have a headset too.
+  The intercom you're talking into doesn't play your own voice back.
 * To talk over an **intercom**, open it and **hold the "Hold to talk" button**. While it's held your voice goes out on
   the intercom's channel; no push to talk key needed. People next to you still hear you, a little quieter. Letting go,
   closing the window or walking away stops it. (The intercom's Mic. switch is for text chat only.)

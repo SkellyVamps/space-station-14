@@ -72,6 +72,8 @@ public sealed class VoiceRoutingTest : GameTest
     requiresPower: false
     currentChannel: Common
     supportedChannels: [ Common ]
+  - type: RadioSpeaker
+    channels: [ Common ]
   - type: TelecomExempt
   - type: UserInterface
     interfaces:
@@ -450,6 +452,30 @@ public sealed class VoiceRoutingTest : GameTest
 
         await Speak(_dummy);
         Assert.That(ClientReceived, Is.EqualTo(before + 1), "letting go stops it, even with the window open");
+
+        // A second intercom with its speaker on next to the listener: they hear it from there as well as their headset.
+        EntityUid other = default;
+        await Pair.Server.WaitPost(() =>
+        {
+            // Swap places: the speaker and their intercom go far away, the listener comes back into the room.
+            var xforms = Ent.System<SharedTransformSystem>();
+            var mapId = Ent.GetComponent<TransformComponent>(_speaker).MapID;
+            xforms.SetMapCoordinates(_speaker, new MapCoordinates(new Vector2(200, 200), mapId));
+            xforms.SetMapCoordinates(intercom, new MapCoordinates(new Vector2(201, 200), mapId));
+            xforms.SetCoordinates(_listener, new EntityCoordinates(_grid.Owner, new Vector2(1.5f, 0.5f)));
+
+            other = Ent.SpawnAtPosition("VoiceTestIntercom", new EntityCoordinates(_grid.Owner, new Vector2(3.5f, 0.5f)));
+            Ent.System<RadioDeviceSystem>().SetSpeakerEnabled(other, null, true, quiet: true);
+            Ent.System<VoiceAudibilitySystem>().InvalidateAll();
+        });
+        await Task.Delay(300); // routes are recomputed a few times a second
+        await RunTicksSync(10);
+
+        before = ClientReceived;
+        await Speak(_dummy, device: intercom);
+        Assert.That(ClientReceived, Is.EqualTo(before + 2), "headset and the intercom speaker next to them");
+        Assert.That(Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value.Speaker,
+            Is.EqualTo(Ent.GetNetEntity(other)), "the out loud copy plays from that intercom");
     }
 
     [Test]

@@ -614,8 +614,9 @@ public sealed partial class VoiceSystem : EntitySystem
     }
 
     /// <summary>
-    /// For each player without their own receiver for this transmission, the loudest device playing it near them.
-    /// Uses the same acoustics as people talking: walls, doors, vacuum, distance.
+    /// For each player near a device playing this transmission out loud, the loudest such device. Players with their
+    /// own headset hear it too, like they'd hear a speaker in the room. Uses the same acoustics as people talking:
+    /// walls, doors, vacuum, distance.
     /// </summary>
     private void UpdateLoudspeakerRecipients(RadioRoute route, ICommonSession sender)
     {
@@ -631,7 +632,6 @@ public sealed partial class VoiceSystem : EntitySystem
                 if (session == sender
                     || session.Status != SessionStatus.InGame
                     || session.AttachedEntity is not { } listener
-                    || route.Listeners.Contains(session)
                     || _ghostQuery.HasComp(listener))
                 {
                     continue;
