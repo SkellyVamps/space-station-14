@@ -1,15 +1,21 @@
 using System.Globalization;
 using System.Numerics;
 using Content.Shared.CCVar;
+using Content.Shared.Examine;
+using Content.Shared.IdentityManagement;
+using Content.Shared.Stealth.Components;
 using Content.Shared.Input;
 using Content.Shared.Radio;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
+using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
+using Robust.Shared.Graphics;
 using Robust.Client.Player;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
 using Robust.Shared.Configuration;
+using Robust.Shared.Containers;
 using Robust.Shared.Network;
 using Robust.Shared.Enums;
 using Robust.Shared.Input.Binding;
@@ -20,7 +26,8 @@ using Robust.Shared.Timing;
 namespace Content.Client.Voice;
 
 /// <summary>
-/// Speaking indicators: the overhead ring overlay and the movable radio panel, according to the player's settings.
+/// Speaking indicators: the level meters over speakers' heads and the movable voice panel, according to the player's
+/// settings.
 /// Also tells the server which radio channels the player doesn't want to hear.
 /// </summary>
 public sealed partial class VoiceIndicatorSystem : EntitySystem
@@ -31,15 +38,19 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IEyeManager _eye = default!;
+    [Dependency] private SharedTransformSystem _xform = default!;
     [Dependency] private IUserInterfaceManager _ui = default!;
     [Dependency] private IClientNetManager _net = default!;
     [Dependency] private VoicePlaybackSystem _playback = default!;
     [Dependency] private VoiceTransmitSystem _transmit = default!;
+    [Dependency] private ExamineSystemShared _examine = default!;
+    [Dependency] private SharedContainerSystem _container = default!;
 
     private VoiceIndicatorOverlay? _overlay;
     private VoiceRadioPanel? _panel;
 
-    private readonly List<(string Channel, string Name)> _radioSpeakers = new();
+    private readonly List<HeardVoice> _heard = new();
+    private readonly List<VoicePanelSpeaker> _panelSpeakers = new();
     private readonly List<ProtoId<RadioChannelPrototype>> _noChannels = new();
     private readonly HashSet<string> _muted = new();
     private readonly Dictionary<string, float> _volumeScratch = new();
@@ -88,7 +99,7 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
     {
         if (enabled)
         {
-            _overlay ??= new VoiceIndicatorOverlay(EntityManager, _player, _timing, _eye);
+            _overlay ??= new VoiceIndicatorOverlay(EntityManager, _player, _proto);
             if (!_overlays.HasOverlay<VoiceIndicatorOverlay>())
                 _overlays.AddOverlay(_overlay);
         }
@@ -191,11 +202,8 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
             _cfg.SaveToFile();
         }
 
-        _radioSpeakers.Clear();
-
         // Always available in game, whether or not you have a radio right now; the player hides it with its key.
-        var show = _showPanel && _clientEnabled && _serverEnabled && _radioEnabled
-                   && _player.LocalEntity != null;
+        var show = _showPanel && _clientEnabled && _serverEnabled && _player.LocalEntity != null;
 
         if (!show)
         {
@@ -215,12 +223,117 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
         }
 
         TryComp(_player.LocalEntity, out VoiceSpeakerComponent? speaker);
-        _playback.GetRadioSpeakers(_radioSpeakers);
+        CollectPanelSpeakers();
 
-        _panel.UpdateSpeakers(_radioSpeakers);
+        _panel.UpdateSpeakers(_panelSpeakers, frameTime);
+        _panel.UpdateControls(_transmit.Range, VoiceIndicatorOverlay.RangeColor(_transmit.Range), _transmit.SelfMuted,
+            _transmit.AdminMuted, _transmit.AdminMuteExpires is { } expires ? expires - _timing.RealTime : null,
+            _timing.RealTime.TotalSeconds);
         _panel.UpdateChannels(speaker?.ListenChannels ?? _noChannels, speaker?.RadioChannels ?? _noChannels,
             speaker?.DefaultRadioChannel, _transmit.SelectedRadioChannel, c => !IsListening(c),
             _playback.GetChannelVolume);
+    }
+
+    private void CollectPanelSpeakers()
+    {
+        _panelSpeakers.Clear();
+        _heard.Clear();
+        _playback.GetHeardVoices(_heard);
+
+        foreach (var voice in _heard)
+        {
+            var level = voice.Levels.Overall;
+            switch (voice.Mode)
+            {
+                case VoiceReceiveMode.Local:
+                    // Only named if you can see who it is; otherwise you just hear a voice.
+                    var name = TryGetEntity(voice.Speaker, out var uid) && CanSee(uid.Value, _eye.CurrentEye)
+                        ? Identity.Name(uid.Value, EntityManager, _player.LocalEntity)
+                        : Loc.GetString("voice-panel-unknown");
+                    _panelSpeakers.Add(new VoicePanelSpeaker("L" + voice.StreamId, name, RangeLabel(voice.Range),
+                        VoiceIndicatorOverlay.RangeColor(voice.Range), level, voice.Talking));
+                    break;
+                case VoiceReceiveMode.Radio:
+                case VoiceReceiveMode.Loudspeaker:
+                    var (channel, color) = GetChannel(voice.Channel);
+                    var route = voice.Mode == VoiceReceiveMode.Radio
+                        ? channel
+                        : Loc.GetString("voice-panel-route-loudspeaker", ("channel", channel));
+                    var radioName = string.IsNullOrEmpty(voice.Name) ? Loc.GetString("voice-panel-unknown") : voice.Name;
+                    _panelSpeakers.Add(new VoicePanelSpeaker((voice.Mode == VoiceReceiveMode.Radio ? "R" : "D") + voice.StreamId,
+                        radioName, route, color, level, voice.Talking));
+                    break;
+            }
+        }
+
+        // Ourselves, at the bottom.
+        if (_transmit.KeyBlocked)
+        {
+            _panelSpeakers.Add(new VoicePanelSpeaker("self", Loc.GetString("voice-panel-you"),
+                Loc.GetString(_transmit.AdminMuted ? "voice-panel-route-admin-muted"
+                    : _transmit.SelfMuted ? "voice-panel-route-muted"
+                    : "voice-panel-route-cant-speak"),
+                VoiceIndicatorOverlay.BlockedColor, 0f, true));
+        }
+        else if (_transmit.Transmitting || !_transmit.SelfLevels.IsSilent)
+        {
+            var route = RangeLabel(_transmit.Range);
+            var color = VoiceIndicatorOverlay.RangeColor(_transmit.Range);
+            if (_transmit.TransmitChannel is { } channelId)
+            {
+                (route, color) = GetChannel(channelId);
+                if (_transmit.TransmittingDevice)
+                    route = Loc.GetString("voice-panel-route-intercom", ("channel", route));
+            }
+
+            _panelSpeakers.Add(new VoicePanelSpeaker("self", Loc.GetString("voice-panel-you"), route, color,
+                _transmit.SelfLevels.Overall, _transmit.Transmitting));
+        }
+    }
+
+    /// <summary>
+    /// Shown next to people heard in person when they aren't just talking.
+    /// </summary>
+    private string? RangeLabel(VoiceRangeMode range)
+    {
+        return range switch
+        {
+            VoiceRangeMode.Whisper => Loc.GetString("voice-range-whisper"),
+            VoiceRangeMode.Shout => Loc.GetString("voice-range-shout"),
+            _ => null,
+        };
+    }
+
+    private (string Name, Color Color) GetChannel(string? id)
+    {
+        return id != null && _proto.TryIndex<RadioChannelPrototype>(id, out var channel)
+            ? (channel.LocalizedName, channel.Color)
+            : (Loc.GetString("voice-panel-route-radio"), Color.LightGray);
+    }
+
+    /// <summary>
+    /// Whether the player could see <paramref name="speaker"/> from <paramref name="eye"/>, the same way the game
+    /// decides whether to show them. Indicators never reveal more than that.
+    /// </summary>
+    public bool CanSee(EntityUid speaker, IEye eye)
+    {
+        // Hidden in a locker, a bag, a mech...: you hear them, but you don't know who it is.
+        if (_container.IsEntityOrParentInContainer(speaker))
+            return false;
+
+        if (TryComp(speaker, out SpriteComponent? sprite) && !sprite.Visible)
+            return false;
+
+        if (TryComp(speaker, out StealthComponent? stealth) && stealth.Enabled)
+            return false;
+
+        // Ghosts and admins with field of view off see everything anyway.
+        if (!eye.DrawFov)
+            return true;
+
+        var position = _xform.GetMapCoordinates(speaker);
+        return position.MapId == eye.Position.MapId
+               && _examine.InRangeUnOccluded(eye.Position, position, 0f, null);
     }
 
     private void CreatePanel()
@@ -246,6 +359,8 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
         };
 
         _panel.ListenToggled += SetListening;
+        _panel.RangePressed += _transmit.CycleRange;
+        _panel.MutePressed += () => _transmit.SetSelfMuted(!_transmit.SelfMuted);
         _panel.VolumeChanged += SetChannelVolume;
         _ui.WindowRoot.OnResized += PlacePanel;
         _panel.TalkChannelSelected += channel => _transmit.SelectedRadioChannel = channel;

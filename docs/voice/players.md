@@ -21,8 +21,22 @@ time without restarting.
 * **Voice activation**: switch *Mode* in Options -> Voice. You transmit whenever you're louder than the threshold.
   Raise the threshold if background noise keeps triggering it.
 * While you type in chat or any text box, push to talk is ignored.
-* A green ring above a character means they're talking; yours turns gold when you're on the radio. The ring only
-  shows for people you can actually see: someone talking behind a wall or inside a locker is heard, but not marked.
+* A small **level meter** (three bars that move with their voice) appears above anyone talking, yourself included.
+  It's white for normal talking, blue-grey for a whisper, orange for a shout, the channel's colour when you talk on the
+  radio or an intercom plays someone, and red when you try to talk but can't be heard. It only shows for people you
+  can actually see: someone talking behind a wall or inside a locker is heard, but not marked.
+
+### Whisper, talk, shout
+
+The **Talk** button at the top of the voice panel switches between **Whisper** (only the people right next to you),
+**Talk** and **Shout** (across a room). Walls and doors still muffle you. You can also bind a key to it in
+Options -> Controls ("Voice: switch whisper / talk / shout"). It only changes your voice in person, not the radio.
+
+### Muting your microphone
+
+The **Mic on** button next to it mutes your microphone: it turns red and says **Muted**, and nothing is sent whatever
+key you press (bindable as "Voice: mute / unmute microphone"). If an **admin** has muted you, the button flashes
+**red and purple**; hover it to see for how long.
 
 Talking into your radio is also heard, a little more quietly, by people near you.
 
@@ -43,13 +57,16 @@ and so on). A key set to a channel your character doesn't have just talks normal
 * A **handheld radio** with its **microphone** on broadcasts what people say near it on its channel, just like text
   chat.
 
-## Radio panel
+## Voice panel
 
-A small **Radio** panel shows who is talking on the radio and on which channel. It's there whenever you're in game,
-including as an observer.
+A small **Voice** panel shows a card for everyone you hear talking: people nearby, the radio, intercoms, and yourself
+at the bottom. Each card has their name, how you hear them (radio channel, "(speaker)" for an intercom, whisper or
+shout) in its colour, and a moving waveform of their voice. Cards stay a moment after someone stops, then fade.
+People nearby are only named if you can see them; otherwise they show as **Unknown**. It's there whenever you're in
+game, including as an observer, and also holds the whisper / talk / shout and mute buttons.
 
 * **F4**, or the **microphone button** in the top menu bar, shows or hides it (change the key in Options -> Controls,
-  "Voice: show/hide radio panel"; the button shows the current key).
+  "Voice: show/hide voice panel"; the button shows the current key).
 * **Drag** it anywhere on the screen; it stays where you put it. Options -> Voice can also hide it or reset its
   position.
 * Press **+** to open its settings:

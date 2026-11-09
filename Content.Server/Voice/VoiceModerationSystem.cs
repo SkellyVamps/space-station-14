@@ -56,7 +56,7 @@ public sealed partial class VoiceModerationSystem : EntitySystem
     {
         // Tell reconnecting players about an existing mute.
         if (e.NewStatus == SessionStatus.InGame && TryGetAdminMute(e.Session.UserId, out var mute))
-            RaiseNetworkEvent(new VoiceAdminMuteStateEvent(true, mute.Expires), e.Session);
+            RaiseNetworkEvent(new VoiceAdminMuteStateEvent(true, mute.Expires - _timing.RealTime), e.Session);
     }
 
     #region Admin mutes
@@ -103,7 +103,7 @@ public sealed partial class VoiceModerationSystem : EntitySystem
             $"{admin?.Name ?? "Server"} voice muted {userName} ({user}) {durationText}. Reason: {reason}");
 
         if (_players.TryGetSessionById(user, out var session))
-            RaiseNetworkEvent(new VoiceAdminMuteStateEvent(true, expires), session);
+            RaiseNetworkEvent(new VoiceAdminMuteStateEvent(true, duration), session);
     }
 
     public bool AdminUnmute(NetUserId user, string userName, ICommonSession? admin)

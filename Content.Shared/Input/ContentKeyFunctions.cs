@@ -20,6 +20,8 @@ namespace Content.Shared.Input
         public static readonly BoundKeyFunction VoicePushToTalk = "VoicePushToTalk";
         public static readonly BoundKeyFunction VoiceRadioPushToTalk = "VoiceRadioPushToTalk";
         public static readonly BoundKeyFunction VoiceToggleRadioPanel = "VoiceToggleRadioPanel";
+        public static readonly BoundKeyFunction VoiceCycleRange = "VoiceCycleRange";
+        public static readonly BoundKeyFunction VoiceToggleMute = "VoiceToggleMute";
         public static readonly BoundKeyFunction VoiceRadioPushToTalk2 = "VoiceRadioPushToTalk2";
         public static readonly BoundKeyFunction VoiceRadioPushToTalk3 = "VoiceRadioPushToTalk3";
         public static readonly BoundKeyFunction VoiceRadioPushToTalk4 = "VoiceRadioPushToTalk4";

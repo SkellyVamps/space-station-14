@@ -1,109 +1,171 @@
-using Content.Shared.Examine;
-using Content.Shared.Stealth.Components;
-using Robust.Client.GameObjects;
+using System.Numerics;
+using Content.Shared.Radio;
+using Content.Shared.Voice;
 using Robust.Client.Graphics;
 using Robust.Client.Player;
-using Robust.Shared.Containers;
 using Robust.Shared.Enums;
-using Robust.Shared.Timing;
+using Robust.Shared.Prototypes;
 
 namespace Content.Client.Voice;
 
 /// <summary>
-/// Speaking indicators: a pulsing ring over anyone heard talking (including yourself while transmitting).
-/// Radio transmissions are listed in the <see cref="VoiceRadioPanel"/> instead.
+/// Speaking indicators: a small level meter next to the head of anyone heard talking (including yourself), three bars
+/// for bass, middle and treble that move with their voice. White when talking in person, the channel's colour when
+/// talking into a radio or played by an intercom, red when you're trying to talk but can't be heard.
 /// </summary>
 /// <remarks>
-/// You can hear someone through a wall, but the ring only shows when you could see them: it follows the same line of
+/// You can hear someone through a wall, but the meter only shows when you could see them: it follows the same line of
 /// sight as the field of view, and hides speakers inside containers or using stealth, so it never reveals more than
 /// the game shows.
 /// </remarks>
 public sealed class VoiceIndicatorOverlay : Overlay
 {
+    private const float Pixel = 1f / EyeManager.PixelsPerMeter;
+
+    // Meter shape, in sprite pixels: a dark box just above the head with three bars in it.
+    private static readonly Vector2 BoxOrigin = new Vector2(-6f, 17f) * Pixel;
+    private static readonly Vector2 BoxSize = new Vector2(12f, 10f) * Pixel;
+    private const float BarWidth = 2f;
+    private const float BarGap = 1f;
+    private const float BarMaxHeight = 7f;
+
+    public static readonly Color TalkColor = Color.FromHex("#EDEDED");
+    public static readonly Color WhisperColor = Color.FromHex("#9DB8E6");
+    public static readonly Color ShoutColor = Color.FromHex("#F2994A");
+    public static readonly Color BlockedColor = Color.FromHex("#E05050");
+
     private readonly IEntityManager _ent;
     private readonly IPlayerManager _player;
-    private readonly IGameTiming _timing;
+    private readonly IPrototypeManager _proto;
     private readonly VoicePlaybackSystem _playback;
     private readonly VoiceTransmitSystem _transmit;
     private readonly SharedTransformSystem _xform;
-    private readonly ExamineSystemShared _examine;
-    private readonly SharedContainerSystem _container;
-    private readonly IEyeManager _eye;
+    private readonly VoiceIndicatorSystem _indicators;
 
-    private readonly HashSet<EntityUid> _speakers = new();
+    private readonly List<HeardVoice> _heard = new();
+    private readonly Dictionary<EntityUid, (VoiceLevels Levels, Color Color, bool Talking)> _meters = new();
 
-    public override OverlaySpace Space => OverlaySpace.ScreenSpace;
+    public override OverlaySpace Space => OverlaySpace.WorldSpaceBelowFOV;
 
-    public VoiceIndicatorOverlay(IEntityManager ent, IPlayerManager player, IGameTiming timing, IEyeManager eye)
+    public VoiceIndicatorOverlay(IEntityManager ent, IPlayerManager player, IPrototypeManager proto)
     {
         _ent = ent;
         _player = player;
-        _timing = timing;
-        _eye = eye;
+        _proto = proto;
         _playback = ent.System<VoicePlaybackSystem>();
         _transmit = ent.System<VoiceTransmitSystem>();
         _xform = ent.System<SharedTransformSystem>();
-        _examine = ent.System<ExamineSystemShared>();
-        _container = ent.System<SharedContainerSystem>();
+        _indicators = ent.System<VoiceIndicatorSystem>();
     }
 
     protected override void Draw(in OverlayDrawArgs args)
     {
-        if (args.ViewportControl is not { } viewport)
+        var handle = args.WorldHandle;
+        var eye = args.Viewport.Eye;
+        if (eye == null)
             return;
 
-        var handle = args.ScreenHandle;
-        var pulse = 0.75f + 0.25f * MathF.Sin((float) _timing.RealTime.TotalSeconds * 10f);
-        var eye = _eye.CurrentEye;
-        var eyePosition = eye.Position;
+        _meters.Clear();
+        _heard.Clear();
+        _playback.GetHeardVoices(_heard);
 
-        _speakers.Clear();
-        _playback.GetLocalSpeakers(_speakers);
-
-        var local = _player.LocalEntity;
-        if (_transmit.Transmitting && local != null)
-            _speakers.Add(local.Value);
-
-        foreach (var speaker in _speakers)
+        foreach (var voice in _heard)
         {
-            if (!_ent.TryGetComponent(speaker, out TransformComponent? xform) || xform.MapID != eyePosition.MapId)
+            // Radio has nobody to point at: it's in the voice panel instead.
+            if (voice.Mode == VoiceReceiveMode.Radio || !_ent.TryGetEntity(voice.Speaker, out var uid))
                 continue;
 
-            var position = _xform.GetMapCoordinates(speaker, xform);
-
-            if (speaker != local && !IsVisible(speaker, eye.DrawFov, eyePosition, position))
-                continue;
-
-            var screen = viewport.WorldToScreen(position.Position) - new System.Numerics.Vector2(0, 48f);
-            var radio = speaker == local && _transmit.TransmittingRadio;
-            var color = (radio ? Color.Gold : Color.LimeGreen).WithAlpha(pulse);
-
-            handle.DrawCircle(screen, 6f, color);
-            handle.DrawCircle(screen, 10f * pulse, color.WithAlpha(0.35f * pulse), false);
-            handle.DrawCircle(screen, 14f * pulse, color.WithAlpha(0.2f * pulse), false);
+            var color = voice.Mode == VoiceReceiveMode.Loudspeaker ? ChannelColor(voice.Channel) : RangeColor(voice.Range);
+            Merge(uid.Value, voice.Levels, color, voice.Talking);
         }
+
+        if (_player.LocalEntity is { } local)
+        {
+            if (_transmit.KeyBlocked)
+                Merge(local, default, BlockedColor, true);
+            else if (_transmit.Transmitting || !_transmit.SelfLevels.IsSilent)
+                Merge(local, _transmit.SelfLevels, SelfColor(), _transmit.Transmitting);
+        }
+
+        // Keep the meters upright on screen whichever way the camera is turned.
+        var rotation = Matrix3Helpers.CreateRotation(-eye.Rotation);
+
+        foreach (var (uid, (levels, color, talking)) in _meters)
+        {
+            if (!_ent.TryGetComponent(uid, out TransformComponent? xform) || xform.MapID != args.MapId)
+                continue;
+
+            var position = _xform.GetMapCoordinates(uid, xform);
+            if (!args.WorldAABB.Contains(position.Position))
+                continue;
+
+            if (uid != _player.LocalEntity && !_indicators.CanSee(uid, eye))
+                continue;
+
+            // Fades out once they stop.
+            var alpha = talking ? 1f : Math.Clamp(levels.Overall * 4f, 0f, 1f);
+            if (alpha <= 0.01f)
+                continue;
+
+            handle.SetTransform(Matrix3x2.Multiply(rotation, Matrix3Helpers.CreateTranslation(position.Position)));
+            DrawMeter(handle, levels, color, alpha);
+        }
+
+        handle.SetTransform(Matrix3x2.Identity);
+    }
+
+    private void Merge(EntityUid uid, VoiceLevels levels, Color color, bool talking)
+    {
+        // Someone heard two ways at once (in person and through an intercom...): show the louder.
+        if (_meters.TryGetValue(uid, out var existing) && existing.Levels.Overall >= levels.Overall)
+        {
+            _meters[uid] = existing with { Talking = existing.Talking || talking };
+            return;
+        }
+
+        _meters[uid] = (levels, color, talking || existing.Talking);
+    }
+
+    private static void DrawMeter(DrawingHandleWorld handle, VoiceLevels levels, Color color, float alpha)
+    {
+        handle.DrawRect(new Box2(BoxOrigin, BoxOrigin + BoxSize), Color.Black.WithAlpha(0.6f * alpha));
+
+        var barColor = color.WithAlpha(color.A * alpha);
+        DrawBar(handle, 0, levels.Low, barColor);
+        DrawBar(handle, 1, levels.Mid, barColor);
+        DrawBar(handle, 2, levels.High, barColor);
+    }
+
+    private static void DrawBar(DrawingHandleWorld handle, int index, float level, Color color)
+    {
+        // Always at least a pixel tall, so a quiet speaker still shows three little dots.
+        var height = 1f + (BarMaxHeight - 1f) * Math.Clamp(level, 0f, 1f);
+        var bottom = BoxOrigin + new Vector2(2f + index * (BarWidth + BarGap), 1.5f) * Pixel;
+        handle.DrawRect(new Box2(bottom, bottom + new Vector2(BarWidth, height) * Pixel), color);
+    }
+
+    private Color SelfColor()
+    {
+        return _transmit.TransmitChannel is { } channel ? ChannelColor(channel) : RangeColor(_transmit.Range);
     }
 
     /// <summary>
-    /// Whether the speaker can be seen from the eye, the same way the game decides whether to show them.
+    /// Colour for someone heard in person: blue-grey whispering, white talking, orange shouting.
     /// </summary>
-    private bool IsVisible(EntityUid speaker, bool checkOcclusion, Robust.Shared.Map.MapCoordinates eye,
-        Robust.Shared.Map.MapCoordinates speakerPosition)
+    public static Color RangeColor(VoiceRangeMode range)
     {
-        // Hidden in a locker, a bag, a mech...: you hear them, but you don't know who it is.
-        if (_container.IsEntityOrParentInContainer(speaker))
-            return false;
+        return range switch
+        {
+            VoiceRangeMode.Whisper => WhisperColor,
+            VoiceRangeMode.Shout => ShoutColor,
+            _ => TalkColor,
+        };
+    }
 
-        if (_ent.TryGetComponent(speaker, out SpriteComponent? sprite) && !sprite.Visible)
-            return false;
-
-        if (_ent.TryGetComponent(speaker, out StealthComponent? stealth) && stealth.Enabled)
-            return false;
-
-        // Ghosts and admins with field of view off see everything anyway.
-        if (!checkOcclusion)
-            return true;
-
-        return _examine.InRangeUnOccluded(eye, speakerPosition, 0f, null);
+    private Color ChannelColor(string? channel)
+    {
+        return channel != null && _proto.TryIndex<RadioChannelPrototype>(channel, out var proto)
+            ? proto.Color
+            : TalkColor;
     }
 }

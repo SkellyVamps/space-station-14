@@ -55,6 +55,7 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
     private bool _acoustics;
     private float _range;
     private float _fullRange;
+    private float _shoutScale = 1f;
     private float _falloff;
     private float _minPressure;
     private float _fullPressure;
@@ -93,6 +94,7 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceAcoustics, v => _acoustics = v, true);
         Subs.CVar(_cfg, CCVars.VoiceRange, v => { _range = v; InvalidateAll(); }, true);
         Subs.CVar(_cfg, CCVars.VoiceFullVolumeRange, v => _fullRange = v, true);
+        Subs.CVar(_cfg, CCVars.VoiceShoutRangeScale, v => { _shoutScale = Math.Clamp(v, 1f, 4f); InvalidateAll(); }, true);
         Subs.CVar(_cfg, CCVars.VoiceFalloffExponent, v => _falloff = v, true);
         Subs.CVar(_cfg, CCVars.VoiceMinPressure, v => { _minPressure = v; InvalidateAll(); }, true);
         Subs.CVar(_cfg, CCVars.VoiceFullPressure, v => _fullPressure = v, true);
@@ -236,14 +238,16 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
     /// <summary>
     /// Straight-line falloff only, for observers (ghosts) who aren't bound by the station's acoustics.
     /// </summary>
-    public bool TryGetObserverAudibility(in AcousticPosition speaker, in AcousticPosition listener, out float gain)
+    /// <param name="rangeScale">How far the voice carries compared to normal talking (whisper, shout).</param>
+    public bool TryGetObserverAudibility(in AcousticPosition speaker, in AcousticPosition listener, out float gain,
+        float rangeScale = 1f)
     {
         gain = 0;
         if (speaker.Map.MapId != listener.Map.MapId || speaker.Map.MapId == MapId.Nullspace)
             return false;
 
         var distance = Vector2.Distance(speaker.Map.Position, listener.Map.Position);
-        gain = AcousticMath.Falloff(distance, _fullRange, _range, _falloff);
+        gain = AcousticMath.Falloff(distance / ClampScale(rangeScale), _fullRange, _range, _falloff);
         return gain > 0;
     }
 
@@ -252,16 +256,19 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
     /// listener's hearing modifiers.
     /// </summary>
     /// <returns>False if the listener cannot hear the speaker at all.</returns>
-    public bool TryGetAudibility(in AcousticPosition speaker, in AcousticPosition listener, out float gain, out float muffle)
+    /// <param name="rangeScale">How far the voice carries compared to normal talking (whisper, shout).</param>
+    public bool TryGetAudibility(in AcousticPosition speaker, in AcousticPosition listener, out float gain, out float muffle,
+        float rangeScale = 1f)
     {
         gain = 0;
         muffle = 0;
+        rangeScale = ClampScale(rangeScale);
 
         if (speaker.Map.MapId != listener.Map.MapId || speaker.Map.MapId == MapId.Nullspace)
             return false;
 
         var euclid = Vector2.Distance(speaker.Map.Position, listener.Map.Position);
-        if (euclid > _range)
+        if (euclid > _range * rangeScale)
             return false;
 
         // Containers between the two. Containers both are inside of don't separate them.
@@ -324,13 +331,16 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
             muffle = AcousticMath.CombineMuffle(muffle, 0.3f);
         }
 
-        gain = AcousticMath.Falloff(distance, _fullRange, _range, _falloff) * speakerPressure * listenerPressure;
+        // Whispering or shouting stretches the same falloff over a shorter or longer distance.
+        gain = AcousticMath.Falloff(distance / rangeScale, _fullRange, _range, _falloff) * speakerPressure * listenerPressure;
         return gain > 0;
     }
 
     #endregion
 
     #region Internals
+
+    private float ClampScale(float scale) => Math.Clamp(scale, 0.05f, _shoutScale);
 
     private static int CountSharedContainers(
         List<(EntityUid Owner, AcousticBarrier Barrier)> a,
@@ -391,7 +401,8 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
 
         var start = _timing.RealTime;
         gridData.Source.Now = now;
-        cached.Field.Compute(gridData.Source, speaker.Tile, new AcousticSettings(_range, _minPressure));
+        // Far enough for a shout.
+        cached.Field.Compute(gridData.Source, speaker.Tile, new AcousticSettings(_range * _shoutScale, _minPressure));
         cached.Grid = grid;
         cached.Version = gridData.Version;
         cached.Computed = now;

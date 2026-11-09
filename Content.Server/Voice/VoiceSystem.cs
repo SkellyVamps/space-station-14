@@ -124,6 +124,8 @@ public sealed partial class VoiceSystem : EntitySystem
     private bool _ghostVoice;
     private bool _livingHearGhosts;
     private TimeSpan _interval;
+    private float _whisperScale;
+    private float _shoutScale;
     private TimeSpan _nextUpdate;
 
     /// <summary>
@@ -141,6 +143,7 @@ public sealed partial class VoiceSystem : EntitySystem
 
         _voiceNet.TransmitReceived += OnTransmit;
         SubscribeNetworkEvent<VoiceSetRadioMutedChannelsEvent>(OnSetRadioMuted);
+        SubscribeNetworkEvent<VoiceSetRangeEvent>(OnSetRange);
 
         _players.PlayerStatusChanged += OnPlayerStatusChanged;
 
@@ -158,6 +161,8 @@ public sealed partial class VoiceSystem : EntitySystem
         Subs.CVar(_cfg, CCVars.VoiceGhostsHearLiving, v => _ghostsHearLiving = v, true);
         Subs.CVar(_cfg, CCVars.VoiceGhostVoice, v => _ghostVoice = v, true);
         Subs.CVar(_cfg, CCVars.VoiceLivingHearGhosts, v => _livingHearGhosts = v, true);
+        Subs.CVar(_cfg, CCVars.VoiceWhisperRangeScale, v => _whisperScale = Math.Clamp(v, 0.05f, 1f), true);
+        Subs.CVar(_cfg, CCVars.VoiceShoutRangeScale, v => _shoutScale = Math.Clamp(v, 1f, 4f), true);
         Subs.CVar(_cfg, CCVars.VoiceAudibilityInterval, v => _interval = TimeSpan.FromSeconds(Math.Clamp(v, 0.05f, 2f)), true);
     }
 
@@ -182,6 +187,42 @@ public sealed partial class VoiceSystem : EntitySystem
     private void OnSetRadioMuted(VoiceSetRadioMutedChannelsEvent ev, EntitySessionEventArgs args)
     {
         SetRadioMutedChannels(args.SenderSession.UserId, ev.Channels);
+    }
+
+    private void OnSetRange(VoiceSetRangeEvent ev, EntitySessionEventArgs args)
+    {
+        SetRange(args.SenderSession, ev.Mode);
+    }
+
+    /// <summary>
+    /// Sets whether <paramref name="session"/> whispers, talks or shouts.
+    /// </summary>
+    public void SetRange(ICommonSession session, VoiceRangeMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+            return;
+
+        var state = GetState(session);
+        if (state.Range == mode)
+            return;
+
+        state.Range = mode;
+        state.RecipientsComputed = TimeSpan.Zero; // who hears them changes right away
+    }
+
+    public VoiceRangeMode GetRange(ICommonSession session)
+    {
+        return _speakers.TryGetValue(session, out var state) ? state.Range : VoiceRangeMode.Talk;
+    }
+
+    private float RangeScale(VoiceRangeMode mode)
+    {
+        return mode switch
+        {
+            VoiceRangeMode.Whisper => _whisperScale,
+            VoiceRangeMode.Shout => _shoutScale,
+            _ => 1f,
+        };
     }
 
     /// <summary>
@@ -442,7 +483,13 @@ public sealed partial class VoiceSystem : EntitySystem
 
         var outgoing = _outgoing;
         outgoing.Mode = VoiceReceiveMode.Local;
-        outgoing.Flags = (endOfSpurt ? VoiceReceiveFlags.EndOfSpurt : 0) | (comp.Ghost ? VoiceReceiveFlags.Ghost : 0);
+        outgoing.Flags = (endOfSpurt ? VoiceReceiveFlags.EndOfSpurt : 0) | (comp.Ghost ? VoiceReceiveFlags.Ghost : 0)
+                         | state.Range switch
+                         {
+                             VoiceRangeMode.Whisper => VoiceReceiveFlags.Whisper,
+                             VoiceRangeMode.Shout => VoiceReceiveFlags.Shout,
+                             _ => VoiceReceiveFlags.None,
+                         };
         outgoing.StreamId = state.LocalStreamId;
         outgoing.Sequence = msg.Sequence;
         outgoing.Speaker = GetNetEntity(speaker);
@@ -870,6 +917,7 @@ public sealed partial class VoiceSystem : EntitySystem
             return;
 
         var speakerGhost = comp.Ghost;
+        var scale = RangeScale(state.Range);
 
         foreach (var session in _players.Sessions)
         {
@@ -897,7 +945,7 @@ public sealed partial class VoiceSystem : EntitySystem
                 if (listenerGhost ? !_ghostVoice : !_livingHearGhosts)
                     continue;
 
-                if (!_audibility.TryGetObserverAudibility(speakerPos, GetPosition(listener), out gain))
+                if (!_audibility.TryGetObserverAudibility(speakerPos, GetPosition(listener), out gain, scale))
                     continue;
 
                 if (!listenerGhost)
@@ -908,12 +956,12 @@ public sealed partial class VoiceSystem : EntitySystem
                 if (!_ghostsHearLiving || !_ghostHearingQuery.HasComp(listener))
                     continue;
 
-                if (!_audibility.TryGetObserverAudibility(speakerPos, GetPosition(listener), out gain))
+                if (!_audibility.TryGetObserverAudibility(speakerPos, GetPosition(listener), out gain, scale))
                     continue;
             }
             else
             {
-                if (!_audibility.TryGetAudibility(speakerPos, GetPosition(listener), out gain, out muffle))
+                if (!_audibility.TryGetAudibility(speakerPos, GetPosition(listener), out gain, out muffle, scale))
                     continue;
 
                 var hearing = GetHearing(listener);
@@ -1118,6 +1166,11 @@ public sealed partial class VoiceSystem : EntitySystem
         public TimeSpan RecipientsComputed;
         public TimeSpan AbuseWindowStart;
         public int AbuseCount;
+
+        /// <summary>
+        /// Whispering, talking or shouting.
+        /// </summary>
+        public VoiceRangeMode Range = VoiceRangeMode.Talk;
     }
 
     /// <summary>

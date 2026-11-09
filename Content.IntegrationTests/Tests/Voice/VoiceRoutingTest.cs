@@ -222,6 +222,48 @@ public sealed class VoiceRoutingTest : GameTest
     }
 
     [Test]
+    public async Task WhisperingAndShoutingChangeHowFarVoiceCarries()
+    {
+        // Five metres apart: talking reaches, a whisper doesn't.
+        await Setup(speakerX: 6);
+        var voice = Ent.System<VoiceSystem>();
+
+        var before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "talking carries five metres");
+
+        await Pair.Server.WaitPost(() => voice.SetRange(_dummy, VoiceRangeMode.Whisper));
+        before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before), "a whisper doesn't");
+
+        // Thirteen metres: beyond talking range, within a shout.
+        await Pair.Server.WaitPost(() =>
+        {
+            voice.SetRange(_dummy, VoiceRangeMode.Talk);
+            Ent.System<SharedTransformSystem>().SetCoordinates(_speaker,
+                new EntityCoordinates(_grid.Owner, new Vector2(14.5f, 0.5f)));
+        });
+        await RunTicksSync(5);
+        await Task.Delay(300); // recipients are recomputed a few times a second
+
+        before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before), "talking doesn't carry thirteen metres");
+
+        await Pair.Server.WaitPost(() => voice.SetRange(_dummy, VoiceRangeMode.Shout));
+        before = ClientReceived;
+        await Speak(_dummy);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "a shout does");
+
+        // The client's whisper / talk / shout button reaches the server.
+        await Pair.Client.WaitPost(() => Pair.Client.EntMan.System<VoiceTransmitSystem>().SetRange(VoiceRangeMode.Whisper));
+        await RunTicksSync(10);
+        Assert.That(Pair.Server.PlayerMan.TryGetSessionById(_clientSession.UserId, out var serverSession));
+        Assert.That(voice.GetRange(serverSession!), Is.EqualTo(VoiceRangeMode.Whisper));
+    }
+
+    [Test]
     public async Task OutOfRangeAndWallsAreNotSent()
     {
         await Setup(speakerX: 12);

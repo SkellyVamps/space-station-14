@@ -1,6 +1,7 @@
 using Content.Shared.CCVar;
 using Content.Shared.Input;
 using Content.Shared.Radio;
+using Content.Shared.Radio.Components;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
 using Content.Shared.Voice.Dsp;
@@ -13,6 +14,7 @@ using Robust.Shared.Audio.Sources;
 using Robust.Shared.Configuration;
 using Robust.Shared.Input.Binding;
 using Robust.Shared.Network;
+using Robust.Shared.Player;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
 
@@ -132,6 +134,61 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     public bool TransmittingRadio => _transmitting && (_transmittingRadio || _deviceSent != null);
 
     /// <summary>
+    /// Talking into a device (an intercom) right now.
+    /// </summary>
+    public bool TransmittingDevice => _transmitting && _deviceSent != null;
+
+    /// <summary>
+    /// The radio channel we're talking on right now (radio key or intercom), or null when just talking.
+    /// </summary>
+    public string? TransmitChannel
+    {
+        get
+        {
+            if (!_transmitting)
+                return null;
+
+            if (_deviceSent is { } device)
+            {
+                return TryGetEntity(device, out var uid) && TryComp(uid, out IntercomComponent? intercom)
+                    ? intercom.CurrentChannel?.Id
+                    : null;
+            }
+
+            if (!_transmittingRadio)
+                return null;
+
+            return _radioChannelSent
+                   ?? (TryComp(_player.LocalEntity, out VoiceSpeakerComponent? speaker)
+                       ? speaker.DefaultRadioChannel?.Id
+                       : null);
+        }
+    }
+
+    /// <summary>
+    /// A talk key (or an intercom's button) is held but we can't be heard: admin muted, gagged, unable to speak...
+    /// </summary>
+    public bool KeyBlocked => (_pttLocal || _pttRadio != 0 || _deviceTransmit != null) && !CanTransmit(out _);
+
+    /// <summary>
+    /// How loud we sound right now while transmitting (after our voice effects), smoothed.
+    /// </summary>
+    public VoiceLevels SelfLevels { get; private set; }
+
+    private readonly VoiceLevelAnalyzer _selfAnalyzer = new();
+    private VoiceLevels _selfTarget;
+
+    /// <summary>
+    /// Whispering, talking or shouting: how far our voice carries.
+    /// </summary>
+    public VoiceRangeMode Range { get; private set; } = VoiceRangeMode.Talk;
+
+    /// <summary>
+    /// We muted our own microphone: nothing is sent, whatever keys are held.
+    /// </summary>
+    public bool SelfMuted { get; private set; }
+
+    /// <summary>
     /// Set when an admin has voice muted us.
     /// </summary>
     public bool AdminMuted { get; private set; }
@@ -145,6 +202,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         base.Initialize();
 
         SubscribeNetworkEvent<VoiceAdminMuteStateEvent>(OnAdminMute);
+        SubscribeLocalEvent<LocalPlayerAttachedEvent>(_ => SendRange());
 
         CommandBinds.Builder
             .Bind(ContentKeyFunctions.VoicePushToTalk,
@@ -157,6 +215,8 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
                 InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 3), _ => SetPushToTalk(false, 3), handle: false))
             .Bind(ContentKeyFunctions.VoiceRadioPushToTalk4,
                 InputCmdHandler.FromDelegate(_ => SetPushToTalk(true, 4), _ => SetPushToTalk(false, 4), handle: false))
+            .Bind(ContentKeyFunctions.VoiceCycleRange, InputCmdHandler.FromDelegate(_ => CycleRange()))
+            .Bind(ContentKeyFunctions.VoiceToggleMute, InputCmdHandler.FromDelegate(_ => SetSelfMuted(!SelfMuted)))
             .Register<VoiceTransmitSystem>();
 
         Subs.CVar(_cfg, CCVars.VoiceEnabled, v => _serverEnabled = v, true);
@@ -213,10 +273,44 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     private void OnAdminMute(VoiceAdminMuteStateEvent ev)
     {
         AdminMuted = ev.Muted;
-        AdminMuteExpires = ev.Expires;
+        AdminMuteExpires = ev.Remaining is { } remaining ? _timing.RealTime + remaining : null;
     }
 
     #region Input
+
+    /// <summary>
+    /// Whisper -> talk -> shout -> whisper.
+    /// </summary>
+    public void CycleRange()
+    {
+        SetRange(Range switch
+        {
+            VoiceRangeMode.Whisper => VoiceRangeMode.Talk,
+            VoiceRangeMode.Talk => VoiceRangeMode.Shout,
+            _ => VoiceRangeMode.Whisper,
+        });
+    }
+
+    public void SetRange(VoiceRangeMode mode)
+    {
+        if (Range == mode)
+            return;
+
+        Range = mode;
+        SendRange();
+    }
+
+    private void SendRange()
+    {
+        // The server forgets on disconnect; LocalPlayerAttachedEvent sends it again.
+        if (_net.IsConnected)
+            RaiseNetworkEvent(new VoiceSetRangeEvent(Range));
+    }
+
+    public void SetSelfMuted(bool muted)
+    {
+        SelfMuted = muted;
+    }
 
     /// <param name="radioKey">0 for the local key, 1 for the main radio key, 2-4 for the extra radio keys.</param>
     private void SetPushToTalk(bool down, int radioKey)
@@ -360,7 +454,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     {
         speaker = null;
 
-        if (!_serverEnabled || !_clientEnabled || AdminMuted || _net.ServerChannel == null)
+        if (!_serverEnabled || !_clientEnabled || AdminMuted || SelfMuted || _net.ServerChannel == null)
             return false;
 
         if (_player.LocalEntity is not { } local || !TryComp(local, out speaker))
@@ -376,6 +470,11 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         try
         {
             Process();
+
+            if (!_transmitting)
+                _selfTarget = default;
+
+            SelfLevels = SelfLevels.SmoothTowards(_selfTarget, frameTime);
         }
         catch (Exception e)
         {
@@ -515,6 +614,9 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
 
         _limiter ??= new CompressorProcessor(VoiceConstants.SampleRate, -3f, 20f, 1f, 50f, 0f, 2f);
         _limiter.Process(frame);
+
+        if (send)
+            _selfTarget = _selfAnalyzer.Analyze(frame);
 
         VoiceDsp.FloatToShort(frame, _frameShort);
 

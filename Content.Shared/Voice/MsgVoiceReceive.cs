@@ -38,6 +38,16 @@ public enum VoiceReceiveFlags : byte
     /// The speaker is a ghost (only relevant to clients that are allowed to hear ghosts).
     /// </summary>
     Ghost = 1 << 2,
+
+    /// <summary>
+    /// The speaker is whispering (local voice only).
+    /// </summary>
+    Whisper = 1 << 3,
+
+    /// <summary>
+    /// The speaker is shouting (local voice only).
+    /// </summary>
+    Shout = 1 << 4,
 }
 
 /// <summary>

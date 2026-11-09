@@ -221,6 +221,9 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             if (msg.Mode == VoiceReceiveMode.Local)
             {
                 stream.Speaker = msg.Speaker;
+                stream.Range = (msg.Flags & VoiceReceiveFlags.Whisper) != 0 ? VoiceRangeMode.Whisper
+                    : (msg.Flags & VoiceReceiveFlags.Shout) != 0 ? VoiceRangeMode.Shout
+                    : VoiceRangeMode.Talk;
 
                 // Muted locally (the server stops sending shortly after, this covers the gap).
                 if (_playerVolumes.TryGetValue(msg.Speaker, out var volume) && volume <= 0)
@@ -312,6 +315,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
                     ? _localVolume
                     : _radioVolume * GetChannelVolume(stream.Channel);
                 stream.Fill(now, queueTarget);
+                stream.UpdateLevels(now, frameTime);
             }
             catch (Exception e)
             {
@@ -381,37 +385,40 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
     }
 
     /// <summary>
-    /// Entities heard speaking locally right now.
+    /// Everyone being heard right now (or just finished, while their indicator fades), for the speaking indicators.
     /// </summary>
-    public void GetLocalSpeakers(HashSet<EntityUid> output)
+    public void GetHeardVoices(List<HeardVoice> output)
     {
         var now = _timing.RealTime;
-        foreach (var stream in _streams.Values)
+        foreach (var ((mode, id), stream) in _streams)
         {
-            if (stream.Mode == VoiceReceiveMode.Local
-                && now - stream.LastPacket < SpeakingWindow
-                && TryGetEntity(stream.Speaker, out var uid))
-            {
-                output.Add(uid.Value);
-            }
-        }
-    }
+            var talking = now - stream.LastPacket < SpeakingWindow;
+            if (!talking && stream.Levels.IsSilent)
+                continue;
 
-    /// <summary>
-    /// Radio transmissions heard right now, as (channel, speaker name).
-    /// </summary>
-    public void GetRadioSpeakers(List<(string Channel, string Name)> output)
-    {
-        var now = _timing.RealTime;
-        foreach (var stream in _streams.Values)
-        {
-            if (stream.Mode != VoiceReceiveMode.Local && now - stream.LastPacket < SpeakingWindow)
-                output.Add((stream.Channel ?? string.Empty, stream.Name ?? string.Empty));
+            output.Add(new HeardVoice(mode, id, stream.Speaker, stream.Channel, stream.Name, stream.Levels, talking,
+                stream.Range));
         }
     }
 
     #endregion
 }
+
+/// <param name="Mode">How it's heard: in person, over the radio, or from a device playing the radio out loud.</param>
+/// <param name="StreamId">Identifies the stream; stays the same while the same person keeps talking the same way.</param>
+/// <param name="Speaker">The person talking (in person), or the device playing it (loudspeaker). Unset for radio.</param>
+/// <param name="Name">Radio only: the name the server says the speaker goes by.</param>
+/// <param name="Talking">Audio is still arriving (as opposed to the indicator fading out).</param>
+/// <param name="Range">In person: whether they're whispering, talking or shouting.</param>
+public readonly record struct HeardVoice(
+    VoiceReceiveMode Mode,
+    ushort StreamId,
+    NetEntity Speaker,
+    string? Channel,
+    string? Name,
+    VoiceLevels Levels,
+    bool Talking,
+    VoiceRangeMode Range);
 
 /// <summary>
 /// One incoming voice stream: jitter buffer -> decoder -> effects -> streaming source.
@@ -432,17 +439,26 @@ public sealed class VoiceStream : IDisposable
     private readonly float[] _float = new float[VoiceConstants.SamplesForMs(60)];
     private int _lastFrameSamples = VoiceConstants.SamplesForMs(20);
 
+    private readonly VoiceLevelAnalyzer _analyzer = new();
+    private readonly VoiceLevelTimeline _timeline = new();
+
     private float _gain;
     private float _muffle;
     private float _appliedCutoff = -1;
 
     public NetEntity Speaker;
+    public VoiceRangeMode Range = VoiceRangeMode.Talk;
     public string? Channel;
     public string? Name;
     public float TargetGain;
     public float TargetMuffle;
     public float Volume = 1f;
     public TimeSpan LastPacket;
+
+    /// <summary>
+    /// How loud what's playing right now is (smoothed), for the speaking indicators.
+    /// </summary>
+    public VoiceLevels Levels;
 
     public int DecodeErrors { get; private set; }
 
@@ -495,12 +511,26 @@ public sealed class VoiceStream : IDisposable
             _lastFrameSamples = count;
             Render(count);
 
+            // Heard once everything already queued has played.
+            var playsAt = now + TimeSpan.FromSeconds(Source.QueuedSamples / (double) VoiceConstants.SampleRate);
+            _timeline.Add(playsAt, _blockLevels);
+
             if (!Source.QueueSamples(_pcm.AsSpan(0, count)))
                 return;
         }
     }
 
     private bool _effectsIdle;
+    private VoiceLevels _blockLevels;
+
+    /// <summary>
+    /// Moves <see cref="Levels"/> along with the audio being heard.
+    /// </summary>
+    public void UpdateLevels(TimeSpan now, float frameTime)
+    {
+        var current = _timeline.Get(now, TimeSpan.FromSeconds(_lastFrameSamples / (double) VoiceConstants.SampleRate));
+        Levels = Levels.SmoothTowards(current, frameTime);
+    }
 
     private void Render(int count)
     {
@@ -531,6 +561,9 @@ public sealed class VoiceStream : IDisposable
         }
 
         _effects?.Process(buffer);
+
+        // Measured before the player's own volume setting: that shouldn't change how loud someone looks.
+        _blockLevels = _analyzer.Analyze(buffer, TargetGain);
 
         // Ramp gain across the block to avoid zipper noise when audibility changes.
         var target = TargetGain * Volume;

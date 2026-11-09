@@ -111,10 +111,14 @@ public sealed class VoicePlayerVolumeChangedEvent(NetEntity target, float volume
 /// Server tells a client whether it is voice muted by an admin, so the UI can explain why it can't talk.
 /// </summary>
 [Serializable, NetSerializable]
-public sealed class VoiceAdminMuteStateEvent(bool muted, TimeSpan? expires) : EntityEventArgs
+public sealed class VoiceAdminMuteStateEvent(bool muted, TimeSpan? remaining) : EntityEventArgs
 {
     public bool Muted = muted;
-    public TimeSpan? Expires = expires;
+
+    /// <summary>
+    /// How long the mute still lasts, or null if until lifted. (Not a time: client and server clocks differ.)
+    /// </summary>
+    public TimeSpan? Remaining = remaining;
 }
 
 /// <summary>
@@ -139,3 +143,22 @@ public sealed class VoiceSetRadioMutedChannelsEvent(List<string> channels) : Ent
 /// </summary>
 [ByRefEvent]
 public record struct VoiceIntelligibilityEvent(bool Unintelligible = false);
+
+/// <summary>
+/// How far a player's voice carries: whispering for the people right next to you, shouting across a room.
+/// </summary>
+public enum VoiceRangeMode : byte
+{
+    Whisper = 0,
+    Talk = 1,
+    Shout = 2,
+}
+
+/// <summary>
+/// Client to server: the player switched between whispering, talking and shouting.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceSetRangeEvent(VoiceRangeMode mode) : EntityEventArgs
+{
+    public VoiceRangeMode Mode = mode;
+}

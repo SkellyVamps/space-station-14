@@ -88,6 +88,8 @@ All CVars are in `Content.Shared/CCVar/CCVars.Voice.cs`. Server ones (put them i
 | `voice.enabled` | `true` | Master switch |
 | `voice.range` | `10` | Maximum acoustic distance in tiles. Nothing is sent beyond it |
 | `voice.full_volume_range` | `2` | Full volume up to this distance |
+| `voice.whisper_range_scale` | `0.3` | How far a whisper carries, as a fraction of the two ranges above |
+| `voice.shout_range_scale` | `1.6` | How far a shout carries, as a multiple of the two ranges above |
 | `voice.falloff_exponent` | `1.6` | Falloff curve (1 = linear, higher = drops off faster) |
 | `voice.min_audible_gain` | `0.02` | Quieter than this: not sent |
 | `voice.acoustics` | `true` | Walls/doors/vacuum. `false` = straight-line distance only |

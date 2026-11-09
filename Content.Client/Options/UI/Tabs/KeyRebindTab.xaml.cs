@@ -231,6 +231,8 @@ namespace Content.Client.Options.UI.Tabs
             AddButton(ContentKeyFunctions.VoiceRadioPushToTalk3);
             AddButton(ContentKeyFunctions.VoiceRadioPushToTalk4);
             AddButton(ContentKeyFunctions.VoiceToggleRadioPanel);
+            AddButton(ContentKeyFunctions.VoiceCycleRange);
+            AddButton(ContentKeyFunctions.VoiceToggleMute);
             AddButton(ContentKeyFunctions.OpenCharacterMenu);
             AddButton(ContentKeyFunctions.OpenCraftingMenu);
             AddButton(ContentKeyFunctions.OpenGuidebook);

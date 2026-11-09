@@ -1,6 +1,7 @@
 using System.Numerics;
 using Content.Client.Stylesheets;
 using Content.Shared.Radio;
+using Content.Shared.Voice;
 using Robust.Client.Graphics;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
@@ -11,8 +12,17 @@ using Robust.Shared.Prototypes;
 namespace Content.Client.Voice;
 
 /// <summary>
-/// Small HUD panel the player can drag anywhere: who is talking on the radio right now, and which of their radio
-/// channels they hear and talk on.
+/// One line of the voice panel: someone being heard, or ourselves.
+/// </summary>
+/// <param name="Key">Stays the same while it's the same person heard the same way, so their card is kept.</param>
+/// <param name="Route">How they're heard (channel name...), or null when in person.</param>
+/// <param name="Level">How loud they are right now, 0-1.</param>
+public readonly record struct VoicePanelSpeaker(string Key, string Name, string? Route, Color Color, float Level,
+    bool Talking);
+
+/// <summary>
+/// Small HUD panel the player can drag anywhere: a card for everyone talking right now (nearby, on the radio, through
+/// an intercom, and yourself) with a live waveform, and which of their radio channels they hear and talk on.
 /// </summary>
 /// <remarks>
 /// Deliberately not a <see cref="BaseWindow"/>: windows are closed by Escape and "close all windows", and this panel is
@@ -21,12 +31,15 @@ namespace Content.Client.Voice;
 public sealed class VoiceRadioPanel : Control
 {
     private const float PanelWidth = 230f;
+    private const int MaxCards = 8;
     private const float MaxListenHeight = 220f;
 
     private readonly IPrototypeManager _proto;
 
     private readonly BoxContainer _speakers;
-    private readonly Label _nobody;
+    private readonly Dictionary<string, VoiceSpeakerCard> _cards = new();
+    private readonly HashSet<string> _seen = new();
+    private readonly List<VoiceSpeakerCard> _expired = new();
     private readonly BoxContainer _settings;
     private readonly BoxContainer _channelRows;
     private readonly OptionButton _talk;
@@ -34,8 +47,12 @@ public sealed class VoiceRadioPanel : Control
     private readonly ScrollContainer _listenScroll;
     private readonly Label _noChannels;
     private readonly Button _expand;
+    private readonly Button _range;
+    private readonly Button _mute;
 
-    private readonly List<(string Channel, string Name)> _shownSpeakers = new();
+    private static readonly Color MutedColor = Color.FromHex("#E04545");
+    private static readonly Color AdminMutedColor = Color.FromHex("#A05BE0");
+
     private readonly List<ProtoId<RadioChannelPrototype>> _shownChannels = new();
     private readonly List<ProtoId<RadioChannelPrototype>> _shownListen = new();
     private readonly Dictionary<string, CheckBox> _listenBoxes = new();
@@ -50,6 +67,16 @@ public sealed class VoiceRadioPanel : Control
     public event Action<Vector2>? Moved;
 
     public event Action<bool>? ExpandedChanged;
+
+    /// <summary>
+    /// The whisper / talk / shout button was clicked.
+    /// </summary>
+    public event Action? RangePressed;
+
+    /// <summary>
+    /// The microphone mute button was clicked.
+    /// </summary>
+    public event Action? MutePressed;
 
     public event Action<string, bool>? ListenToggled;
 
@@ -71,11 +98,9 @@ public sealed class VoiceRadioPanel : Control
 
         var background = new StyleBoxFlat
         {
-            BackgroundColor = Color.FromHex("#1B1B1E").WithAlpha(0.92f),
-            BorderColor = Color.FromHex("#3E3E46"),
-            BorderThickness = new Thickness(1),
+            BackgroundColor = Color.FromHex("#0E0E12").WithAlpha(0.88f),
         };
-        background.SetContentMarginOverride(StyleBox.Margin.All, 6);
+        background.SetContentMarginOverride(StyleBox.Margin.All, 5);
 
         _expand = new Button
         {
@@ -89,6 +114,20 @@ public sealed class VoiceRadioPanel : Control
             ExpandedChanged?.Invoke(args.Pressed);
         };
 
+        _range = new Button
+        {
+            MinWidth = 62,
+            ToolTip = Loc.GetString("voice-panel-range-tooltip"),
+        };
+        _range.OnPressed += _ => RangePressed?.Invoke();
+
+        _mute = new Button
+        {
+            MinWidth = 62,
+            Margin = new Thickness(3, 0),
+        };
+        _mute.OnPressed += _ => MutePressed?.Invoke();
+
         var header = new BoxContainer
         {
             Orientation = BoxContainer.LayoutOrientation.Horizontal,
@@ -99,22 +138,19 @@ public sealed class VoiceRadioPanel : Control
                     Text = Loc.GetString("voice-radio-panel-title"),
                     StyleClasses = { StyleClass.LabelKeyText },
                     HorizontalExpand = true,
+                    VerticalAlignment = VAlignment.Center,
                 },
+                _range,
+                _mute,
                 _expand,
             },
-        };
-
-        _nobody = new Label
-        {
-            Text = Loc.GetString("voice-radio-panel-nobody"),
-            StyleClasses = { StyleClass.LabelSubText },
         };
 
         _speakers = new BoxContainer
         {
             Orientation = BoxContainer.LayoutOrientation.Vertical,
-            Margin = new Thickness(0, 2, 0, 2),
-            Children = { _nobody },
+            SeparationOverride = 2,
+            Margin = new Thickness(0, 2, 0, 0),
         };
 
         _talk = new OptionButton { HorizontalExpand = true };
@@ -151,10 +187,9 @@ public sealed class VoiceRadioPanel : Control
             StyleClasses = { StyleClass.LabelSubText },
         };
 
-        _settings = new BoxContainer
+        var settings = new BoxContainer
         {
             Orientation = BoxContainer.LayoutOrientation.Vertical,
-            Margin = new Thickness(0, 4, 0, 0),
             Children =
             {
                 _talkRow,
@@ -169,16 +204,22 @@ public sealed class VoiceRadioPanel : Control
             },
         };
 
-        AddChild(new PanelContainer
+        _settings = new BoxContainer
         {
-            PanelOverride = background,
+            Orientation = BoxContainer.LayoutOrientation.Vertical,
+            Margin = new Thickness(0, 2, 0, 0),
+            Children = { new PanelContainer { PanelOverride = background, Children = { settings } } },
+        };
+
+        // A slim header to grab and open settings by, then the cards, each on its own dark strip.
+        AddChild(new BoxContainer
+        {
+            Orientation = BoxContainer.LayoutOrientation.Vertical,
             Children =
             {
-                new BoxContainer
-                {
-                    Orientation = BoxContainer.LayoutOrientation.Vertical,
-                    Children = { header, _speakers, _settings },
-                },
+                new PanelContainer { PanelOverride = background, Children = { header } },
+                _speakers,
+                _settings,
             },
         });
 
@@ -193,35 +234,96 @@ public sealed class VoiceRadioPanel : Control
     }
 
     /// <summary>
-    /// Shows the radio transmissions being heard right now.
+    /// Shows whether we whisper, talk or shout, and whether our microphone is muted (by us, or by an admin: then the
+    /// button flashes purple and red).
     /// </summary>
-    public void UpdateSpeakers(List<(string Channel, string Name)> speakers)
+    /// <param name="time">Real time in seconds, for the flashing.</param>
+    public void UpdateControls(VoiceRangeMode range, Color rangeColor, bool selfMuted, bool adminMuted,
+        TimeSpan? adminMuteRemaining, double time)
     {
-        if (ListEquals(_shownSpeakers, speakers))
-            return;
-
-        _shownSpeakers.Clear();
-        _shownSpeakers.AddRange(speakers);
-
-        _speakers.RemoveAllChildren();
-        if (speakers.Count == 0)
+        var rangeText = Loc.GetString(range switch
         {
-            _speakers.AddChild(_nobody);
-            return;
+            VoiceRangeMode.Whisper => "voice-range-whisper",
+            VoiceRangeMode.Shout => "voice-range-shout",
+            _ => "voice-range-talk",
+        });
+
+        if (_range.Text != rangeText)
+            _range.Text = rangeText;
+
+        _range.Label.FontColorOverride = rangeColor;
+
+        string muteText;
+        string tooltip;
+        Color? tint;
+        if (adminMuted)
+        {
+            muteText = Loc.GetString("voice-panel-mute-admin");
+            tooltip = adminMuteRemaining is { } remaining
+                ? Loc.GetString("voice-panel-mute-admin-tooltip-timed", ("minutes", Math.Max(1, (int) Math.Ceiling(remaining.TotalMinutes))))
+                : Loc.GetString("voice-panel-mute-admin-tooltip");
+            // Alternates twice a second so it's impossible to miss.
+            tint = (int) (time * 2) % 2 == 0 ? AdminMutedColor : MutedColor;
+        }
+        else if (selfMuted)
+        {
+            muteText = Loc.GetString("voice-panel-mute-on");
+            tooltip = Loc.GetString("voice-panel-mute-on-tooltip");
+            tint = MutedColor;
+        }
+        else
+        {
+            muteText = Loc.GetString("voice-panel-mute-off");
+            tooltip = Loc.GetString("voice-panel-mute-off-tooltip");
+            tint = null;
         }
 
-        foreach (var (channelId, name) in speakers)
+        if (_mute.Text != muteText)
+            _mute.Text = muteText;
+
+        _mute.ToolTip = tooltip;
+        _mute.ModulateSelfOverride = tint;
+    }
+
+    /// <summary>
+    /// Shows who is talking right now. Cards of people who stopped stay a moment and fade out.
+    /// </summary>
+    public void UpdateSpeakers(List<VoicePanelSpeaker> speakers, float frameTime)
+    {
+        _seen.Clear();
+        foreach (var speaker in speakers)
         {
-            var (channelName, color) = GetChannel(channelId);
-            _speakers.AddChild(new Label
+            if (!_cards.TryGetValue(speaker.Key, out var card))
             {
-                Text = Loc.GetString("voice-radio-panel-speaker",
-                    ("channel", channelName),
-                    ("name", string.IsNullOrEmpty(name) ? Loc.GetString("voice-radio-panel-unknown-speaker") : name)),
-                FontColorOverride = color,
-                ClipText = true,
-            });
+                if (_cards.Count >= MaxCards)
+                    continue;
+
+                card = new VoiceSpeakerCard(speaker.Key);
+                _cards[speaker.Key] = card;
+                _speakers.AddChild(card);
+            }
+
+            _seen.Add(speaker.Key);
+            card.Update(frameTime, speaker.Talking, speaker.Level, speaker.Name, speaker.Route, speaker.Color);
         }
+
+        // Gone from the list (stream ended): let the card fade out on its own.
+        foreach (var (key, card) in _cards)
+        {
+            if (!_seen.Contains(key))
+                card.Fade(frameTime);
+
+            if (card.Expired)
+                _expired.Add(card);
+        }
+
+        foreach (var card in _expired)
+        {
+            _cards.Remove(card.Key);
+            card.Orphan();
+        }
+
+        _expired.Clear();
     }
 
     /// <summary>

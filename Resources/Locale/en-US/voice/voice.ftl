@@ -123,8 +123,8 @@ cmd-voiceradio-hint = <channel>
 
 ## Radio panel
 
-voice-radio-panel-title = Radio
-voice-radio-panel-settings-tooltip = Choose which channels you hear and talk on. Drag the panel to move it; F4 hides it.
+voice-radio-panel-title = Voice
+voice-radio-panel-settings-tooltip = Choose which radio channels you hear and talk on. Drag the panel to move it; F4 hides it.
 voice-radio-panel-nobody = Nobody is talking
 voice-radio-panel-speaker = [{ $channel }] { $name }
 voice-radio-panel-unknown-speaker = Unknown
@@ -155,3 +155,30 @@ voice-preset-squeaky = Squeaky
 voice-preset-nasal = Nasal
 voice-preset-nervous = Nervous
 voice-preset-elderly = Elderly
+
+## Voice panel: who is talking, whisper / talk / shout, mute
+
+voice-panel-you = You
+voice-panel-unknown = Unknown
+voice-panel-route-radio = Radio
+voice-panel-route-loudspeaker = { $channel } (speaker)
+voice-panel-route-intercom = { $channel } (intercom)
+voice-panel-route-muted = Muted
+voice-panel-route-admin-muted = Muted by admin
+voice-panel-route-cant-speak = Can't speak
+
+voice-range-whisper = Whisper
+voice-range-talk = Talk
+voice-range-shout = Shout
+voice-panel-range-tooltip = How far your voice carries: whisper for the people next to you, shout across a room. Click to switch.
+
+voice-panel-mute-off = Mic on
+voice-panel-mute-off-tooltip = Your microphone is on. Click to mute it.
+voice-panel-mute-on = Muted
+voice-panel-mute-on-tooltip = You muted your microphone. Click to unmute it.
+voice-panel-mute-admin = Muted
+voice-panel-mute-admin-tooltip = An admin has muted your voice until they lift it.
+voice-panel-mute-admin-tooltip-timed = An admin has muted your voice for { $minutes } more { $minutes ->
+    [one] minute
+   *[other] minutes
+}.

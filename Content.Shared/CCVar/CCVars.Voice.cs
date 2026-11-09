@@ -80,6 +80,18 @@ public sealed partial class CCVars
     /// <summary>
     ///     Distance (in tiles) within which local voice is at full volume.
     /// </summary>
+    /// <summary>
+    /// How far a whisper carries, as a fraction of <see cref="VoiceRange"/> (and of the full volume range).
+    /// </summary>
+    public static readonly CVarDef<float> VoiceWhisperRangeScale =
+        CVarDef.Create("voice.whisper_range_scale", 0.3f, CVar.SERVER | CVar.REPLICATED);
+
+    /// <summary>
+    /// How far a shout carries, as a multiple of <see cref="VoiceRange"/> (and of the full volume range).
+    /// </summary>
+    public static readonly CVarDef<float> VoiceShoutRangeScale =
+        CVarDef.Create("voice.shout_range_scale", 1.6f, CVar.SERVER | CVar.REPLICATED);
+
     public static readonly CVarDef<float> VoiceFullVolumeRange =
         CVarDef.Create("voice.full_volume_range", 2f, CVar.SERVER | CVar.REPLICATED);
 

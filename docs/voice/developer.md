@@ -16,7 +16,7 @@ The system is split into layers that only talk to their neighbours, so each can 
 | GAMEPLAY | Character/species/equipment/disguise/impersonation -> speaker state | `VoiceProfileSystem`, `VoiceModifierSystem`, `VoiceImpersonationSystem` |
 | PLAYBACK | Jitter buffer, decode, receive DSP, positional sources | `Content.Client/Voice/VoicePlaybackSystem.cs`, `VoiceJitterBuffer.cs` |
 | MODERATION | Admin mutes, personal mute/volume, logs | `VoiceModerationSystem`, `Commands/` |
-| UI | Options tab, character editor, indicators, radio panel | `Content.Client/Options/UI/Tabs/VoiceTab.*`, `Lobby/UI/HumanoidProfileEditor.CharacterVoice.cs`, `VoiceIndicator*`, `VoiceRadioPanel.cs` |
+| UI | Options tab, character editor, level meters, voice panel (speaker cards, range and mute buttons) | `Content.Client/Options/UI/Tabs/VoiceTab.*`, `Lobby/UI/HumanoidProfileEditor.CharacterVoice.cs`, `VoiceIndicator*`, `VoiceRadioPanel.cs` |
 
 ## Packet flow
 
@@ -265,3 +265,19 @@ compatible with old codes.
 drowsy status effects, `JitteringComponent`, stamina damage, respirator saturation below its suffocation threshold,
 and body temperature within 25 K of the cold damage threshold. Skipped for `InnateOnly` (impersonation recordings).
 Add new states there, or subscribe to `VoiceModifiersEvent` in your own system.
+
+## Whisper, talk, shout
+
+The client sends `VoiceSetRangeEvent` when the player switches (and again on attach). The server keeps it per session
+(`VoiceSystem.SetRange`) and passes a range scale to `VoiceAudibilitySystem.TryGetAudibility`, which divides the
+acoustic distance by it: the same falloff, stretched or shrunk (`voice.whisper_range_scale`,
+`voice.shout_range_scale`). Acoustic fields are computed out to `voice.range × shout scale`. Local packets carry
+`VoiceReceiveFlags.Whisper` / `Shout` so listeners can colour the indicators.
+
+## Speaking indicators
+
+`VoiceStream` measures what it plays with `VoiceLevelAnalyzer` (overall level plus bass, middle and treble bands) and
+schedules each block on a `VoiceLevelTimeline` for when it will actually be heard, so the meters move with the audio.
+`VoiceTransmitSystem.SelfLevels` does the same for your own voice. `VoiceIndicatorOverlay` draws the three-bar meters in
+world space above heads; `VoiceRadioPanel` shows a `VoiceSpeakerCard` per voice from
+`VoicePlaybackSystem.GetHeardVoices`. Who may be shown or named goes through `VoiceIndicatorSystem.CanSee`.
