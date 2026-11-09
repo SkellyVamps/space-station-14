@@ -1,0 +1,113 @@
+name: Publish Echoes Voice app
+
+# Builds the standalone voice app (EchoesVoice/) for Windows, macOS and Linux and attaches it to a GitHub release.
+# Run it from Actions -> Publish Echoes Voice app -> Run workflow with a new tag such as voice-app-v1.0.0, or push such
+# a tag. Server owners then link to the release (voice.external_app_download_url) or put the zips in their server's
+# voice-app/ data folder.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create, e.g. voice-app-v1.0.0
+        required: true
+  push:
+    tags:
+      - "voice-app-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            name: Windows
+          - rid: linux-x64
+            name: Linux
+          - rid: osx-x64
+            name: macOS-Intel
+          - rid: osx-arm64
+            name: macOS-AppleSilicon
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        run: >
+          dotnet publish EchoesVoice/EchoesVoice.csproj -c Release -r ${{ matrix.rid }} --self-contained
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none
+          -o out/${{ matrix.rid }}
+
+      - name: Package (Windows, Linux)
+        if: ${{ !startsWith(matrix.rid, 'osx') }}
+        run: |
+          cd out/${{ matrix.rid }}
+          zip -9 ../../EchoesVoice_${{ matrix.name }}.zip *
+
+      - name: Package (macOS app bundle)
+        if: ${{ startsWith(matrix.rid, 'osx') }}
+        run: |
+          app="out/Echoes Voice.app/Contents"
+          mkdir -p "$app/MacOS" "$app/Resources"
+          cp out/${{ matrix.rid }}/* "$app/MacOS/"
+          chmod +x "$app/MacOS/EchoesVoice"
+          cp EchoesVoice/Assets/icon.icns "$app/Resources/icon.icns"
+          cat > "$app/Info.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Echoes Voice</string>
+            <key>CFBundleDisplayName</key><string>Echoes Voice</string>
+            <key>CFBundleIdentifier</key><string>com.skellyvamps.echoesofthevoid.voice</string>
+            <key>CFBundleExecutable</key><string>EchoesVoice</string>
+            <key>CFBundleIconFile</key><string>icon</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>1.0.0</string>
+            <key>LSMinimumSystemVersion</key><string>12.0</string>
+            <key>NSMicrophoneUsageDescription</key><string>Echoes Voice sends your voice to the game server you link it to.</string>
+            <key>CFBundleURLTypes</key>
+            <array>
+              <dict>
+                <key>CFBundleURLName</key><string>Echoes Voice link</string>
+                <key>CFBundleURLSchemes</key><array><string>echoesvoice</string></array>
+              </dict>
+            </array>
+          </dict>
+          </plist>
+          EOF
+          sed -i 's/^          //' "$app/Info.plist"
+          cd out
+          zip -9 -r ../EchoesVoice_${{ matrix.name }}.zip "Echoes Voice.app"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: EchoesVoice_${{ matrix.name }}
+          path: EchoesVoice_${{ matrix.name }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: >
+          gh release create "$TAG" dist/*.zip --repo "${{ github.repository }}" --target "${{ github.sha }}"
+          --title "Echoes Voice $TAG"
+          --notes "The standalone voice app for Space Station 14, Echoes of the Void. Download the zip for your system,
+          unzip and run it, then paste the link from the game (Options > Voice > Copy link for the app)."

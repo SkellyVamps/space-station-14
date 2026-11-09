@@ -308,3 +308,9 @@ reports (`VoiceExternalKeyEvent`), upsamples to 48 kHz, runs the speaker's voice
 `VoiceSystem.HandleTransmit(..., fromServer: true)`. `VoiceExternalSystem` (client) gets the link and sends key
 state; `VoiceTransmitSystem` stops using the local microphone while connected. `ImaAdpcm` is mirrored by
 `voice-worklet.js`; `ImaAdpcmTest` checks both produce identical bytes.
+
+The standalone app (`EchoesVoice/`, Avalonia, not in the game solution) speaks the same protocol with `kind: "app"`. It
+records with OpenAL Soft (`Robust.Natives.OpenAL`) at 16 kHz, runs the shared `NoiseSuppressor`, encodes with the
+shared `ImaAdpcm`, and registers the `echoesvoice://connect?server=...&code=...` link for the voice page's
+"Open in the app" button (Windows registry, Linux .desktop, macOS Info.plist). Links that arrive from outside for a
+server the player hasn't approved before always ask first.

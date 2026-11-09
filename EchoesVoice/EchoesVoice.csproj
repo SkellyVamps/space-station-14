@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+  Echoes Voice: the standalone voice app. Uses the computer's microphone as the player's voice on servers running the
+  Echoes of the Void voice chat, instead of the game's own microphone or the browser page. Not part of the game build:
+  publish it with `dotnet publish EchoesVoice -c Release -r <rid>` (see docs/voice/server-owners.md).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>EchoesVoice</AssemblyName>
+    <RootNamespace>EchoesVoice</RootNamespace>
+    <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="OpenTK.Audio.OpenAL" />
+    <PackageReference Include="Robust.Natives.OpenAL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The exact same audio format and noise removal as the game and server. -->
+    <Compile Include="..\Content.Shared\Voice\Codecs\ImaAdpcm.cs" Link="Shared\ImaAdpcm.cs" />
+    <Compile Include="..\Content.Shared\Voice\Dsp\IVoiceProcessor.cs" Link="Shared\IVoiceProcessor.cs" />
+    <Compile Include="..\Content.Shared\Voice\Dsp\Fft.cs" Link="Shared\Fft.cs" />
+    <Compile Include="..\Content.Shared\Voice\Dsp\NoiseSuppressor.cs" Link="Shared\NoiseSuppressor.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+</Project>

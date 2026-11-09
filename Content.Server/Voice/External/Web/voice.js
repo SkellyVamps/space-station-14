@@ -256,7 +256,8 @@
 
     ui.copy.onclick = async () => {
         try {
-            await navigator.clipboard.writeText(code);
+            // The whole link: the app needs the server's address as well as the code.
+            await navigator.clipboard.writeText(location.origin + "/voice#" + code);
             ui.copy.textContent = "Copied";
             setTimeout(() => ui.copy.textContent = "Copy", 1500);
         } catch {
@@ -277,6 +278,10 @@
 
     ui.code.textContent = code;
     ui.codeRow.hidden = false;
+
+    // Hands this server and code to the Echoes Voice app, if installed (it asks before connecting to a new server).
+    $("open-app").href = "echoesvoice://connect?server=" + encodeURIComponent(location.origin) + "&code=" + encodeURIComponent(code);
+    $("open-app-row").hidden = false;
 
     if (!window.isSecureContext || !navigator.mediaDevices || !window.AudioWorkletNode) {
         setStatus("bad", "This page needs a secure (https) address",

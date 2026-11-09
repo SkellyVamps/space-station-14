@@ -21,6 +21,9 @@ If the game can't use your microphone, or you'd rather pick it in your browser, 
 microphone and leave the tab open (you can minimise it). Everything else stays the same: talk with your usual push to
 talk keys **in the game**, and the game still decides who hears you.
 
+* **Prefer an app to a browser tab?** The voice page has the **Echoes Voice** app for download. Install it, then press
+  **Open in the app** on the voice page, or **Copy link for the app** in Options -> Voice and paste it into the app.
+  It reconnects by itself and asks before connecting to a server you haven't used before.
 * **Copy link for the app** copies your personal link for the Echoes Voice app (or another device). Don't share it:
   anyone with it can talk as you until you leave the server.
 * **Use game microphone** switches back. Closing the tab does too.

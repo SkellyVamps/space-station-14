@@ -151,9 +151,10 @@ there's nothing else to run or open: it's part of the game server process.
   port on a domain, set `voice.external_public_url` to that address, e.g. `https://ss14.example.com`. If unset,
   `hub.server_url` is used (`ss14s://` becomes `https://`), else the address the player connected to.
 * WebSockets must pass through (Cloudflare Tunnels do by default).
-* **App downloads:** put the app's files (`.zip`, `.exe`, `.dmg`, `.AppImage`...) in `voice-app/` in the server's data
-  folder and the page lists them, served by the server; or set `voice.external_app_download_url` to link elsewhere
-  (e.g. your GitHub releases).
+* **The Echoes Voice app** (`EchoesVoice/`): run the **Publish Echoes Voice app** GitHub workflow with a tag like
+  `voice-app-v1.0.0`; it builds Windows, macOS and Linux zips into a release. Then either set
+  `voice.external_app_download_url` to that release page, or download the zips into `voice-app/` in the server's data
+  folder and the voice page lists them, served by the game server itself (`.zip`, `.exe`, `.dmg`, `.AppImage`...).
 
 | CVar | Default | Description |
 |---|---|---|
