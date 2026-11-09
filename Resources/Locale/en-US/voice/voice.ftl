@@ -66,6 +66,7 @@ voice-impersonator-examine = It has voice recordings of: { $names }.
 ui-options-tab-voice = Voice
 ui-options-voice-header = Voice chat
 ui-options-voice-enabled = Enable voice chat (speaking and hearing)
+ui-options-voice-transcribe-notice = This server converts voice chat to text for its admin logs, like text chat is logged. Your audio itself is not recorded.
 ui-options-voice-input-header = Microphone
 ui-options-voice-input-device = Microphone
 ui-options-voice-input-device-default = System default

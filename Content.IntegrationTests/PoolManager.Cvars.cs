@@ -30,6 +30,8 @@ public static partial class PoolManager
         (CCVars.GameLobbyEnabled.Name, "false"),
         (CCVars.ConfigPresetDevelopment.Name, "false"),
         (CCVars.AdminLogsEnabled.Name, "false"),
+        // Voice tests use a stand-in for speech recognition; never download or run the real model.
+        (CCVars.VoiceTranscribe.Name, "false"),
         (CCVars.AutosaveEnabled.Name, "false"),
         (CCVars.InteractionRateLimitCount.Name, "9999999"),
         (CCVars.InteractionRateLimitPeriod.Name, "0.1"),

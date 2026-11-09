@@ -201,6 +201,20 @@ public static class ServerPackaging
             BinSkipFolders,
             cancel: cancel);
 
+        // Voice-to-text: Whisper.net loads its native speech recognition libraries from runtimes/<platform>/ next to the
+        // server. Its folders name macOS "macos" where .NET says "osx".
+        var whisperRid = platform.Rid.Replace("osx", "macos");
+        var whisperDir = Path.Combine(sourcePath, "runtimes", whisperRid);
+        if (Directory.Exists(whisperDir))
+        {
+            foreach (var file in Directory.GetFiles(whisperDir))
+            {
+                var name = Path.GetFileName(file);
+                if (name.Contains("whisper", StringComparison.OrdinalIgnoreCase))
+                    inputPassCore.InjectFileFromDisk($"runtimes/{whisperRid}/{name}", file);
+            }
+        }
+
         await RobustSharedPackaging.WriteContentAssemblies(
             inputPassResources,
             contentDir,

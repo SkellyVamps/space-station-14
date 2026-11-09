@@ -124,6 +124,7 @@ public sealed partial class VoiceStatsCommand : LocalizedEntityCommands
 {
     [Dependency] private VoiceSystem _voice = default!;
     [Dependency] private VoiceAudibilitySystem _audibility = default!;
+    [Dependency] private Transcription.VoiceTranscriptionSystem _transcription = default!;
 
     public override string Command => "voicestats";
 
@@ -137,6 +138,7 @@ public sealed partial class VoiceStatsCommand : LocalizedEntityCommands
         shell.WriteLine($"Packets: received {s.PacketsReceived}, rejected {s.PacketsRejected}, muted {s.PacketsMuted}, sent {s.PacketsSent} ({s.BytesSent / 1024} KiB)");
         shell.WriteLine($"Recipient updates: {s.RecipientUpdates}, avg {avgRecipientUs:0.0} us; streams capped {s.StreamsCapped}");
         shell.WriteLine($"Creature frames replaced by noises: {s.PacketsReplaced}");
+        shell.WriteLine($"Voice-to-text: transcribed {_transcription.SpurtsTranscribed}, waiting {_transcription.Queued}, skipped (too busy) {_transcription.SpurtsSkipped}, failed {_transcription.SpurtsFailed}");
         shell.WriteLine($"Acoustic fields: computed {_audibility.FieldsComputed} (avg {avgFieldUs:0.0} us), cache hits {_audibility.FieldCacheHits}");
     }
 }

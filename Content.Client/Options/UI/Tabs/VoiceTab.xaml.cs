@@ -19,6 +19,7 @@ namespace Content.Client.Options.UI.Tabs;
 public sealed partial class VoiceTab : Control
 {
     [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private Robust.Shared.Network.IClientNetManager _net = default!;
     [Dependency] private IEntityManager _entMan = default!;
     [Dependency] private IInputManager _input = default!;
     [Dependency] private IPrototypeManager _proto = default!;
@@ -150,6 +151,9 @@ public sealed partial class VoiceTab : Control
         LevelLabel.Text = level <= -79f ? "-" : $"{level:0} dB";
 
         StatusLabel.Text = GetStatus();
+
+        // Only meaningful (and only accurate) while connected: it's the server's setting.
+        TranscribeNotice.Visible = _net.IsConnected && _cfg.GetCVar(CCVars.VoiceTranscribe);
 
         var pttKey = _input.TryGetKeyBinding(ContentKeyFunctions.VoicePushToTalk, out var binding)
             ? binding.GetKeyString()

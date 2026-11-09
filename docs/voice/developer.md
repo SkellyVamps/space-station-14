@@ -281,3 +281,12 @@ schedules each block on a `VoiceLevelTimeline` for when it will actually be hear
 `VoiceTransmitSystem.SelfLevels` does the same for your own voice. `VoiceIndicatorOverlay` draws the three-bar meters in
 world space above heads; `VoiceRadioPanel` shows a `VoiceSpeakerCard` per voice from
 `VoicePlaybackSystem.GetHeardVoices`. Who may be shown or named goes through `VoiceIndicatorSystem.CanSee`.
+
+## Voice-to-text
+
+`VoiceTranscriptionSystem` receives every accepted frame from `VoiceSystem.HandleTransmit` with a description of how it
+was said, decodes it per player, downsamples to 16 kHz and cuts it into spurts (end of spurt, a route change, 30
+seconds, or a second of silence). Spurts that are too short or too quiet are dropped; the rest go to one background
+worker running an `IVoiceTranscriber` (`WhisperVoiceTranscriber`, Whisper.net), and results are logged on the main
+thread as `LogType.VoiceTranscript`. Tests set `TranscriberOverride` and listen to `Transcribed`; the integration test
+pool turns `voice.transcribe` off so the real model is never loaded there.

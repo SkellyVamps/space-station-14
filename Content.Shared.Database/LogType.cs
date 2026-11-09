@@ -493,4 +493,9 @@ public enum LogType
     /// Voice chat moderation and abuse (never voice content).
     /// </summary>
     Voice = 106,
+
+    /// <summary>
+    /// What a player said over voice chat, converted to text by the server's speech recognition.
+    /// </summary>
+    VoiceTranscript = 107,
 }

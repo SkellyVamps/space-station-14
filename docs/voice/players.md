@@ -107,6 +107,11 @@ In game, how you sound also depends on:
   change your voice while they last.
 * Some devices can disguise your voice.
 
+## Voice-to-text
+
+If the server has it on (Options -> Voice tells you), what you say over voice chat is converted to text for the
+server's admin logs, the same way text chat is logged. Only the text is kept; your audio is never recorded.
+
 ## Muting people
 
 Right click someone -> **Voice** -> **Mute voice**, or pick a volume (50%-200%). This follows the *player*, not just

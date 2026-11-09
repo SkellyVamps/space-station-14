@@ -130,14 +130,51 @@ Acoustic properties of specific doors, windows and containers are prototype data
 
 | Action | How |
 |---|---|
-| Voice mute a player | `voicemute <player> [minutes, 0 = until restart] [reason]`, or right click -> Admin -> Voice mute |
+| Voice mute a player | `voicemute <player> [minutes, 0 = until restart] [reason]`, right click -> Admin -> Voice mute, or the player panel's Voice row (pick a duration) |
 | Lift it | `voiceunmute <player>` |
 | List mutes | `voicemutes` |
 | Server-wide off | `cvar voice.enabled false` |
 | Stats | `voicestats` (active speakers, packets, rejections, timings) |
 
 Requires the `MODERATOR` flag (`voicestats`: `DEBUG`). Mutes, unmutes, voice recordings for impersonation and repeated
-packet abuse are written to the admin log under the `Voice` log type. Voice content is never logged or stored.
+packet abuse are written to the admin log under the `Voice` log type. Audio is never logged or stored; what people say
+is logged as text, see below.
+
+## Voice-to-text
+
+Everything players say over voice chat is converted to text on the server and written to the admin logs under its own
+log type, **`VoiceTranscript`**, so it can be searched and filtered like text chat:
+
+```
+[Voice-to-text] Urist McHands (Tester) (radio, Security): "Someone's breaking into the armory."
+```
+
+It notes how it was said: `talking`, `whispering`, `shouting`, `radio, <channel>`, `intercom, <channel>` or `ghost`.
+Each entry is one press of the talk key (long speeches are split every 30 seconds) and is logged a few seconds after it
+was spoken, once recognition is done. Players see a notice in Options -> Voice that voice is converted to text for the
+admin logs; mention it in your rules too.
+
+Recognition is OpenAI's Whisper model running **locally** on the server (whisper.cpp via Whisper.net): no audio leaves
+the server and nothing is paid for. It runs on a background thread, never the game's.
+
+| CVar | Default | Description |
+|---|---|---|
+| `voice.transcribe` | `true` | On/off |
+| `voice.transcribe_model` | `BaseEn` | `TinyEn` (fastest), `BaseEn`, `SmallEn` (more accurate, slower), `MediumEn`...; drop `En` for other languages |
+| `voice.transcribe_model_path` | empty | Model file. Empty: `whisper/ggml-<model>.bin` in the server data folder |
+| `voice.transcribe_auto_download` | `true` | Download the model from Hugging Face the first time if missing (Tiny ~75 MB, Base ~140 MB, Small ~470 MB) |
+| `voice.transcribe_language` | `en` | Language code, or `auto` to detect |
+| `voice.transcribe_threads` | `2` | CPU threads for recognition |
+| `voice.transcribe_max_queue` | `32` | Speech waiting to be transcribed; beyond it new speech is skipped instead of falling behind |
+
+The model is loaded (and downloaded if needed) when the server starts; the log says `Speech recognition ready`. How
+fast it is depends on the CPU and model. If `voicestats` shows speech being skipped, raise `voice.transcribe_threads` or
+use `TinyEn`.
+
+**Pterodactyl / Docker:** the server data folder must be writable (it already is for the database), and the container
+needs internet access the first time to download the model. Without it, download the `ggml-base.en.bin` file from
+Hugging Face (`sandrohanea/whisper.net`) yourself and set `voice.transcribe_model_path` to it. Server builds made with
+`Content.Packaging` include the speech recognition libraries for Windows, Linux and macOS.
 
 Muted players are told why they can't talk (Options -> Voice shows the status).
 

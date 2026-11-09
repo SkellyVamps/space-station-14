@@ -227,6 +227,52 @@ public sealed partial class CCVars
         CVarDef.Create("voice.loudspeaker_gain", 0.8f, CVar.SERVER);
 
     /// <summary>
+    ///     Converts what players say over voice chat to text (speech recognition running on the server) and writes it
+    ///     to the admin logs as <c>VoiceTranscript</c>. The audio itself is never stored. Replicated so players can be
+    ///     told about it in their voice options.
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceTranscribe =
+        CVarDef.Create("voice.transcribe", true, CVar.SERVER | CVar.REPLICATED);
+
+    /// <summary>
+    ///     Speech recognition model: Tiny, TinyEn, Base, BaseEn, Small, SmallEn, Medium, MediumEn... Bigger is more
+    ///     accurate and slower. The ".En" models only understand English and are better at it.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceTranscribeModel =
+        CVarDef.Create("voice.transcribe_model", "BaseEn", CVar.SERVERONLY);
+
+    /// <summary>
+    ///     Model file to use. Empty: <c>whisper/ggml-&lt;model&gt;.bin</c> in the server's data folder.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceTranscribeModelPath =
+        CVarDef.Create("voice.transcribe_model_path", string.Empty, CVar.SERVERONLY);
+
+    /// <summary>
+    ///     Download the model (from Hugging Face) the first time it's needed if the file isn't there.
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceTranscribeAutoDownload =
+        CVarDef.Create("voice.transcribe_auto_download", true, CVar.SERVERONLY);
+
+    /// <summary>
+    ///     Language spoken, as a two letter code ("en"), or "auto" to detect it every time.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceTranscribeLanguage =
+        CVarDef.Create("voice.transcribe_language", "en", CVar.SERVERONLY);
+
+    /// <summary>
+    ///     CPU threads speech recognition may use. It runs in the background, never on the game's own thread.
+    /// </summary>
+    public static readonly CVarDef<int> VoiceTranscribeThreads =
+        CVarDef.Create("voice.transcribe_threads", 2, CVar.SERVERONLY);
+
+    /// <summary>
+    ///     Most pieces of speech waiting to be transcribed. When the server can't keep up, newer ones are skipped (and
+    ///     counted in voicestats) rather than lagging further and further behind.
+    /// </summary>
+    public static readonly CVarDef<int> VoiceTranscribeMaxQueue =
+        CVarDef.Create("voice.transcribe_max_queue", 32, CVar.SERVERONLY);
+
+    /// <summary>
     ///     Whether intercoms and handheld radios with their microphone on broadcast voice spoken near them.
     /// </summary>
     public static readonly CVarDef<bool> VoiceRadioMicrophones =

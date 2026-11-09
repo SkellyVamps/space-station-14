@@ -6,6 +6,9 @@ using Content.IntegrationTests.Fixtures;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.Radio.EntitySystems;
 using Content.Server.Voice;
+using Content.Server.Voice.Transcription;
+using System.Threading;
+using Content.Shared.CCVar;
 using Content.Shared.Atmos;
 using Content.Shared.Atmos.Components;
 using Content.Shared.Inventory;
@@ -219,6 +222,111 @@ public sealed class VoiceRoutingTest : GameTest
         before = ClientReceived;
         await Speak(_dummy);
         Assert.That(ClientReceived, Is.EqualTo(before));
+    }
+
+    private sealed class FakeTranscriber : IVoiceTranscriber
+    {
+        public int LastSampleCount;
+
+        public Task LoadAsync(CancellationToken cancel) => Task.CompletedTask;
+
+        public Task<string> TranscribeAsync(float[] samples, CancellationToken cancel)
+        {
+            LastSampleCount = samples.Length;
+            return Task.FromResult("hello there");
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    [Test]
+    public async Task SpeechIsTranscribedForTheAdminLogs()
+    {
+        await Setup();
+        var transcription = Ent.System<VoiceTranscriptionSystem>();
+        var fake = new FakeTranscriber();
+        var logged = new List<(string Route, string Text)>();
+        Action<NetUserId, string, string> onTranscribed = (user, route, text) =>
+        {
+            if (user == _dummy.UserId)
+                logged.Add((route, text));
+        };
+
+        await Pair.Server.WaitPost(() =>
+        {
+            // Before switching it on, so the real model is never loaded.
+            transcription.TranscriberOverride = fake;
+            transcription.Transcribed += onTranscribed;
+            Pair.Server.CfgMan.SetCVar(CCVars.VoiceTranscribe, true);
+        });
+
+        try
+        {
+            // Half a second of talking, then letting go.
+            for (var i = 0; i < 25; i++)
+            {
+                await Speak(_dummy);
+            }
+
+            await EndSpurt(_dummy);
+            await WaitFor(() => logged.Count > 0);
+
+            Assert.That(logged, Has.Count.EqualTo(1));
+            Assert.That(logged[0], Is.EqualTo(("talking", "hello there")));
+            // 25 frames of 20 ms, at the 16 kHz speech recognition expects.
+            Assert.That(fake.LastSampleCount, Is.EqualTo(25 * 320));
+
+            // A click (too short to be words) isn't sent to speech recognition.
+            await Speak(_dummy);
+            await EndSpurt(_dummy);
+            await RunTicksSync(20);
+            Assert.That(logged, Has.Count.EqualTo(1));
+
+            // Whispering is noted as such.
+            await Pair.Server.WaitPost(() => Ent.System<VoiceSystem>().SetRange(_dummy, VoiceRangeMode.Whisper));
+            for (var i = 0; i < 20; i++)
+            {
+                await Speak(_dummy);
+            }
+
+            await EndSpurt(_dummy);
+            await WaitFor(() => logged.Count > 1);
+            Assert.That(logged[1].Route, Is.EqualTo("whispering"));
+        }
+        finally
+        {
+            await Pair.Server.WaitPost(() =>
+            {
+                Pair.Server.CfgMan.SetCVar(CCVars.VoiceTranscribe, false);
+                transcription.Transcribed -= onTranscribed;
+            });
+        }
+    }
+
+    private async Task EndSpurt(ICommonSession session)
+    {
+        await Pair.Server.WaitPost(() =>
+        {
+            Ent.System<VoiceSystem>().HandleTransmit(session, new MsgVoiceTransmit
+            {
+                Flags = VoiceTransmitFlags.EndOfSpurt,
+                Sequence = _nextSequence++,
+            });
+        });
+
+        await RunTicksSync(2);
+    }
+
+    private async Task WaitFor(Func<bool> condition)
+    {
+        // Speech recognition runs on a background thread; results are logged on a later tick.
+        for (var i = 0; i < 200 && !condition(); i++)
+        {
+            await RunTicksSync(1);
+            await Task.Delay(10);
+        }
     }
 
     [Test]

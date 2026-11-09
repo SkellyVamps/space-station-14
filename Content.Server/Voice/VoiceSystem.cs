@@ -1,5 +1,6 @@
 using System.Numerics;
 using Content.Server.Administration.Logs;
+using Content.Server.Voice.Transcription;
 using Content.Shared.CCVar;
 using Content.Shared.Chat;
 using Content.Shared.Database;
@@ -30,7 +31,8 @@ namespace Content.Server.Voice;
 /// <remarks>
 /// <para>
 /// Receives encoded voice frames from clients, validates them, works out who may hear them and forwards the untouched
-/// Opus payload with per-recipient gain and muffling. The server never decodes or re-encodes audio.
+/// Opus payload with per-recipient gain and muffling. The server never re-encodes audio; it only decodes a copy for
+/// voice-to-text (<see cref="Transcription.VoiceTranscriptionSystem"/>).
 /// </para>
 /// <para>
 /// The speaker is always the entity attached to the sending session; clients cannot claim to be someone else.
@@ -59,6 +61,7 @@ public sealed partial class VoiceSystem : EntitySystem
     [Dependency] private SharedInteractionSystem _interaction = default!;
     [Dependency] private SharedUserInterfaceSystem _ui = default!;
     [Dependency] private SharedPowerReceiverSystem _power = default!;
+    [Dependency] private VoiceTranscriptionSystem _transcription = default!;
 
     /// <summary>
     /// How long after its last packet a speaker keeps getting its recipients refreshed.
@@ -334,6 +337,10 @@ public sealed partial class VoiceSystem : EntitySystem
             ? GetOperatedIntercom(speaker, msg.Device)
             : null;
 
+        // For the admin logs, as text.
+        _transcription.OnFrame(session, speaker, DescribeRoute(speakerComp, msg, state, radio, device), msg.Payload,
+            endOfSpurt);
+
         // Speaking into a radio or intercom is quieter for the people around.
         SendLocal(session, state, speaker, speakerComp, msg, radio || device != null ? _radioLocalGain : 1f, endOfSpurt);
 
@@ -347,6 +354,29 @@ public sealed partial class VoiceSystem : EntitySystem
             SendOnRoute(closedRoute, session, msg, now, endOfSpurt); // Window closed as they let go: still end it.
         else if (_radioEnabled && _radioMicrophones && !speakerComp.Ghost)
             SendMicrophones(session, state, speaker, msg, now, endOfSpurt);
+    }
+
+    /// <summary>
+    /// How a voice frame was said, for the voice-to-text admin log.
+    /// </summary>
+    private string DescribeRoute(VoiceSpeakerComponent speaker, MsgVoiceTransmit msg, SpeakerState state, bool radio,
+        Entity<IntercomComponent>? device)
+    {
+        if (speaker.Ghost)
+            return "ghost";
+
+        if (radio)
+            return "radio, " + (msg.RadioChannel ?? speaker.DefaultRadioChannel?.Id ?? "default channel");
+
+        if (device is { } intercom)
+            return "intercom, " + intercom.Comp.CurrentChannel?.Id;
+
+        return state.Range switch
+        {
+            VoiceRangeMode.Whisper => "whispering",
+            VoiceRangeMode.Shout => "shouting",
+            _ => "talking",
+        };
     }
 
     /// <summary>
