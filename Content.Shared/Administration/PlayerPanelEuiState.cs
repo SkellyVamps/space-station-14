@@ -18,7 +18,10 @@ public sealed class PlayerPanelEuiState(
     bool frozen,
     bool canAhelp,
     float trustScore,
-    DateTime? accountCreationDate)
+    DateTime? accountCreationDate,
+    bool canVoiceMute = false,
+    bool voiceMuted = false,
+    TimeSpan? voiceMuteRemaining = null)
     : EuiStateBase
 {
     public readonly NetUserId Guid = guid;
@@ -34,6 +37,28 @@ public sealed class PlayerPanelEuiState(
     public readonly bool CanAhelp = canAhelp;
     public readonly float TrustScore = trustScore;
     public readonly DateTime? AccountCreationDate = accountCreationDate;
+
+    /// <summary>
+    /// The viewing admin may voice mute (Moderator flag).
+    /// </summary>
+    public readonly bool CanVoiceMute = canVoiceMute;
+
+    public readonly bool VoiceMuted = voiceMuted;
+
+    /// <summary>
+    /// How long the voice mute still lasts; null while muted means until lifted.
+    /// </summary>
+    public readonly TimeSpan? VoiceMuteRemaining = voiceMuteRemaining;
+}
+
+/// <summary>
+/// Voice mutes the player for <see cref="Minutes"/> (null: until lifted), or lifts their voice mute.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class PlayerPanelVoiceMuteMessage(bool mute, int? minutes) : EuiMessageBase
+{
+    public readonly bool Mute = mute;
+    public readonly int? Minutes = minutes;
 }
 
 

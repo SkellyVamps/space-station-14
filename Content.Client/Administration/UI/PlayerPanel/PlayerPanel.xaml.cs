@@ -28,6 +28,15 @@ public sealed partial class PlayerPanel : FancyWindow
     public event Action? OnDelete;
     public event Action? OnRejuvenate;
 
+    /// <summary>
+    /// Voice mute (true, with minutes or null for until lifted) or lift it (false).
+    /// </summary>
+    public event Action<bool, int?>? OnVoiceMute;
+
+    // Duration choices for voice mutes, in minutes; null is until lifted.
+    private static readonly int?[] VoiceMuteMinutes = { 5, 15, 30, 60, null };
+    private bool _voiceMuted;
+
     public NetUserId? TargetPlayer;
     public string? TargetUsername;
     private bool _isWhitelisted;
@@ -55,6 +64,32 @@ public sealed partial class PlayerPanel : FancyWindow
         LogsButton.OnPressed += _ => OnLogs?.Invoke();
         DeleteButton.OnPressed += _ => OnDelete?.Invoke();
         RejuvenateButton.OnPressed += _ => OnRejuvenate?.Invoke();
+
+        for (var i = 0; i < VoiceMuteMinutes.Length; i++)
+        {
+            VoiceMuteDuration.AddItem(VoiceMuteMinutes[i] is { } minutes
+                ? Loc.GetString("player-panel-voice-mute-minutes", ("minutes", minutes))
+                : Loc.GetString("player-panel-voice-mute-forever"), i);
+        }
+
+        VoiceMuteDuration.OnItemSelected += args => VoiceMuteDuration.SelectId(args.Id);
+        VoiceMuteButton.OnPressed += _ =>
+            OnVoiceMute?.Invoke(!_voiceMuted, VoiceMuteMinutes[Math.Clamp(VoiceMuteDuration.SelectedId, 0, VoiceMuteMinutes.Length - 1)]);
+    }
+
+    public void SetVoiceMute(bool canMute, bool muted, TimeSpan? remaining)
+    {
+        VoiceMuteRow.Visible = canMute;
+        _voiceMuted = muted;
+
+        VoiceMuteStatus.Text = !muted
+            ? Loc.GetString("player-panel-voice-not-muted")
+            : remaining is { } left
+                ? Loc.GetString("player-panel-voice-muted-timed", ("minutes", Math.Max(1, (int) Math.Ceiling(left.TotalMinutes))))
+                : Loc.GetString("player-panel-voice-muted");
+
+        VoiceMuteButton.Text = Loc.GetString(muted ? "player-panel-voice-unmute" : "player-panel-voice-mute");
+        VoiceMuteDuration.Disabled = muted;
     }
 
     public void SetUsername(string player)

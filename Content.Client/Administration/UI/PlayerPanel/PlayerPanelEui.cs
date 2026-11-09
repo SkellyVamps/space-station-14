@@ -40,6 +40,7 @@ public sealed partial class PlayerPanelEui : BaseEui
         PlayerPanel.OnRejuvenate += () => SendMessage(new PlayerPanelRejuvenationMessage());
         PlayerPanel.OnDelete += () => SendMessage(new PlayerPanelDeleteMessage());
         PlayerPanel.OnFollow += () => SendMessage(new PlayerPanelFollowMessage());
+        PlayerPanel.OnVoiceMute += (mute, minutes) => SendMessage(new PlayerPanelVoiceMuteMessage(mute, minutes));
 
         PlayerPanel.OnClose += () => SendMessage(new CloseEuiMessage());
     }
@@ -71,6 +72,7 @@ public sealed partial class PlayerPanelEui : BaseEui
         PlayerPanel.SetAhelp(s.CanAhelp);
         PlayerPanel.SetTrustScore(s.TrustScore);
         PlayerPanel.SetAccountCreationDate(s.AccountCreationDate);
+        PlayerPanel.SetVoiceMute(s.CanVoiceMute, s.VoiceMuted, s.VoiceMuteRemaining);
         PlayerPanel.SetButtons();
     }
 }

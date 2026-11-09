@@ -36,5 +36,11 @@
             <Button Name="CameraButton" Text="{Loc player-panel-camera}" Disabled="True"/>
            </GridContainer>
        </BoxContainer>
+
+       <BoxContainer Orientation="Horizontal" Name="VoiceMuteRow" Visible="False" Margin="0 4 0 0">
+           <Label Name="VoiceMuteStatus" HorizontalExpand="True"/>
+           <OptionButton Name="VoiceMuteDuration" MinWidth="110"/>
+           <Button Name="VoiceMuteButton" Text="{Loc player-panel-voice-mute}" MinWidth="110"/>
+       </BoxContainer>
     </BoxContainer>
 </ui:FancyWindow>

@@ -106,6 +106,14 @@ public sealed partial class VoiceModerationSystem : EntitySystem
             RaiseNetworkEvent(new VoiceAdminMuteStateEvent(true, duration), session);
     }
 
+    /// <summary>
+    /// How long <paramref name="mute"/> still lasts, or null if until lifted.
+    /// </summary>
+    public TimeSpan? GetRemaining(AdminVoiceMute mute)
+    {
+        return mute.Expires is { } expires ? expires - _timing.RealTime : null;
+    }
+
     public bool AdminUnmute(NetUserId user, string userName, ICommonSession? admin)
     {
         if (!_adminMutes.Remove(user))

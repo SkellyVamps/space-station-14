@@ -3,6 +3,7 @@ using Content.Server.Administration.Logs;
 using Content.Server.Administration.Managers;
 using Content.Server.Administration.Notes;
 using Content.Server.Database;
+using Content.Server.Voice;
 using Content.Server.EUI;
 using Content.Shared.Administration;
 using Content.Shared.Administration.Systems;
@@ -37,6 +38,9 @@ public sealed partial class PlayerPanelEui : BaseEui
     private bool _canAhelp;
     private float _trustScore;
     private DateTime? _accountCreationDate;
+    private bool _canVoiceMute;
+    private bool _voiceMuted;
+    private TimeSpan? _voiceMuteRemaining;
     private FollowerSystem _follower;
 
     public PlayerPanelEui(LocatedPlayerData player)
@@ -72,7 +76,10 @@ public sealed partial class PlayerPanelEui : BaseEui
             _frozen,
             _canAhelp,
             _trustScore,
-            _accountCreationDate);
+            _accountCreationDate,
+            _canVoiceMute,
+            _voiceMuted,
+            _voiceMuteRemaining);
     }
 
     private void OnPermsChanged(AdminPermsChangedEventArgs args)
@@ -149,6 +156,29 @@ public sealed partial class PlayerPanelEui : BaseEui
                     _entity.DeleteEntity(session.AttachedEntity);
                 }
                 break;
+            case PlayerPanelVoiceMuteMessage voiceMsg:
+                if (!_admins.HasAdminFlag(Player, AdminFlags.Moderator)
+                    || !_entity.TrySystem<VoiceModerationSystem>(out var voiceModeration))
+                {
+                    return;
+                }
+
+                if (voiceMsg.Mute)
+                {
+                    // Same limits as the voicemute command: whole minutes, up to a day; null is until lifted.
+                    TimeSpan? duration = voiceMsg.Minutes is { } minutes
+                        ? TimeSpan.FromMinutes(Math.Clamp(minutes, 1, 24 * 60))
+                        : null;
+                    voiceModeration.AdminMute(_targetPlayer.UserId, _targetPlayer.Username, duration,
+                        "Player panel", Player);
+                }
+                else
+                {
+                    voiceModeration.AdminUnmute(_targetPlayer.UserId, _targetPlayer.Username, Player);
+                }
+
+                SetPlayerState();
+                break;
             case PlayerPanelFollowMessage:
                 if (!_admins.HasAdminFlag(Player, AdminFlags.Admin) ||
                     !_player.TryGetSessionById(_targetPlayer.UserId, out session) ||
@@ -213,6 +243,19 @@ public sealed partial class PlayerPanelEui : BaseEui
         else
         {
             _canFreeze = false;
+        }
+
+        _canVoiceMute = _admins.HasAdminFlag(Player, AdminFlags.Moderator);
+        if (_entity.TrySystem<VoiceModerationSystem>(out var voice)
+            && voice.TryGetAdminMute(_targetPlayer.UserId, out var voiceMute))
+        {
+            _voiceMuted = true;
+            _voiceMuteRemaining = voice.GetRemaining(voiceMute);
+        }
+        else
+        {
+            _voiceMuted = false;
+            _voiceMuteRemaining = null;
         }
 
         if (_admins.HasAdminFlag(Player, AdminFlags.Adminhelp))
