@@ -183,3 +183,20 @@ voice-panel-mute-admin-tooltip-timed = An admin has muted your voice for { $minu
     [one] minute
    *[other] minutes
 }.
+
+## Voice webpage / app as the microphone
+
+ui-options-voice-external-header = Browser or app microphone
+ui-options-voice-external-status-off = You can use your web browser, or the Echoes Voice app, as your microphone instead of the game.
+ui-options-voice-external-status-web = Your microphone is the voice webpage in your browser. Keep it open; your push to talk keys still work as usual.
+ui-options-voice-external-status-app = Your microphone is the Echoes Voice app. Your push to talk keys still work as usual.
+ui-options-voice-external-open = Use browser microphone
+ui-options-voice-external-open-tooltip = Opens this server's voice page in your browser, already linked to you. Allow the microphone there.
+ui-options-voice-external-copy = Copy link for the app
+ui-options-voice-external-copy-tooltip = Copies your personal voice link. Paste it into the Echoes Voice app, or open it on another device. Don't share it: it lets someone talk as you.
+ui-options-voice-external-copied = Link copied
+ui-options-voice-external-disconnect = Use game microphone
+
+cmd-voicelink-desc = Uses the voice webpage or the Echoes Voice app as your microphone.
+cmd-voicelink-help = Usage: voicelink [open | copy | print | off]. open: open the voice page in your browser. copy: copy your link for the app. print: show your link. off: go back to the game's microphone.
+cmd-voicelink-copied = Your voice link is on the clipboard. Don't share it: it lets someone talk as you.

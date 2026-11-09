@@ -28,6 +28,10 @@
   <ItemGroup>
     <Folder Include="EntityEffects\" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The voice webpage, served by VoiceWebManager at /voice. -->
+    <EmbeddedResource Include="Voice\External\Web\*" LogicalName="VoiceWeb.%(Filename)%(Extension)" />
+  </ItemGroup>
   <Import Project="..\RobustToolbox\MSBuild\Robust.Properties.targets" />
   <Import Project="..\RobustToolbox\MSBuild\Robust.EntitySystemSubscriptionsGenerator.targets" />
 

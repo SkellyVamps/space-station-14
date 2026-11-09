@@ -227,6 +227,29 @@ public sealed partial class CCVars
         CVarDef.Create("voice.loudspeaker_gain", 0.8f, CVar.SERVER);
 
     /// <summary>
+    ///     Lets players use the voice webpage (served by this server at <c>/voice</c>) or the standalone voice app as
+    ///     their microphone instead of the game's own.
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceExternalEnabled =
+        CVarDef.Create("voice.external_enabled", true, CVar.SERVER | CVar.REPLICATED);
+
+    /// <summary>
+    ///     The server's public web address for the voice webpage, e.g. <c>https://voice.example.com</c> (what your
+    ///     reverse proxy or Cloudflare Tunnel serves the status port as). Browsers only allow microphones on https
+    ///     pages, or on the same computer. Empty: worked out from <c>hub.server_url</c>, else the address players
+    ///     connected to.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceExternalPublicUrl =
+        CVarDef.Create("voice.external_public_url", string.Empty, CVar.SERVERONLY);
+
+    /// <summary>
+    ///     Where the voice webpage sends players to download the standalone voice app. Empty: the files in
+    ///     <c>voice-app/</c> in the server's data folder, served by the server itself.
+    /// </summary>
+    public static readonly CVarDef<string> VoiceExternalAppDownloadUrl =
+        CVarDef.Create("voice.external_app_download_url", string.Empty, CVar.SERVERONLY);
+
+    /// <summary>
     ///     Converts what players say over voice chat to text (speech recognition running on the server) and writes it
     ///     to the admin logs as <c>VoiceTranscript</c>. The audio itself is never stored. Replicated so players can be
     ///     told about it in their voice options.

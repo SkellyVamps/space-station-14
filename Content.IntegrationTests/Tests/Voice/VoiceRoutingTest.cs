@@ -7,6 +7,8 @@ using Content.Server.Atmos.EntitySystems;
 using Content.Server.Radio.EntitySystems;
 using Content.Server.Voice;
 using Content.Server.Voice.Transcription;
+using Content.Server.Voice.External;
+using Content.Shared.Voice.Codecs;
 using System.Threading;
 using Content.Shared.CCVar;
 using Content.Shared.Atmos;
@@ -327,6 +329,70 @@ public sealed class VoiceRoutingTest : GameTest
             await RunTicksSync(1);
             await Task.Delay(10);
         }
+    }
+
+    [Test]
+    public async Task VoiceWebpageMicrophoneIsHeard()
+    {
+        await Setup();
+        var web = Pair.Server.ResolveDependency<VoiceWebManager>();
+
+        // A page connects as the dummy player's microphone and sends a tone.
+        var frame = new byte[ImaAdpcm.FrameBytes];
+        var pcm = new short[ImaAdpcm.FrameSamples];
+        for (var i = 0; i < pcm.Length; i++)
+        {
+            pcm[i] = (short) (Math.Sin(i * 0.2) * 6000);
+        }
+
+        var adpcm = new ImaAdpcm.State();
+        ImaAdpcm.Encode(pcm, ref adpcm, frame);
+
+        ushort seq = 0;
+        async Task SendFrames(int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                web.InjectForTest(new VoiceWebFrame(_dummy.UserId, seq++, frame));
+            }
+
+            await RunTicksSync(3);
+        }
+
+        web.InjectForTest(new VoiceWebConnectionChanged(_dummy.UserId, "web", true));
+        await RunTicksSync(2);
+
+        // Talk keys up: the page's audio goes nowhere.
+        var before = ClientReceived;
+        await SendFrames(5);
+        Assert.That(ClientReceived, Is.EqualTo(before), "nothing without a talk key held");
+
+        // Push to talk held in the game: it's heard like the game's own microphone.
+        await Pair.Server.WaitPost(() => RaiseFromDummy(new VoiceExternalKeyEvent { Keyed = true }));
+        await SendFrames(5);
+        Assert.That(ClientReceived, Is.GreaterThanOrEqualTo(before + 5), "heard while the key is held");
+
+        var last = Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value;
+        Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Local));
+        Assert.That(last.Speaker, Is.EqualTo(Ent.GetNetEntity(_speaker)));
+
+        // Let go.
+        await Pair.Server.WaitPost(() => RaiseFromDummy(new VoiceExternalKeyEvent { Keyed = false }));
+        await SendFrames(1);
+        before = ClientReceived;
+        await SendFrames(5);
+        Assert.That(ClientReceived, Is.EqualTo(before), "silent again once the key is released");
+
+        // The player leaves: their link code stops working.
+        var code = web.GetOrCreateCode(_dummy.UserId);
+        web.Forget(_dummy.UserId);
+        Assert.That(web.GetOrCreateCode(_dummy.UserId), Is.Not.EqualTo(code), "a new code after leaving");
+    }
+
+    private void RaiseFromDummy(VoiceExternalKeyEvent ev)
+    {
+        // As if the dummy player's client had sent it.
+        Ent.System<VoiceExternalMicSystem>().SetKeys(_dummy.UserId, ev);
     }
 
     [Test]

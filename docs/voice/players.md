@@ -14,6 +14,18 @@ where your character is standing, quieter with distance, muffled through doors, 
 If your microphone gets unplugged, voice reconnects automatically when it's back. You can change microphones at any
 time without restarting.
 
+## Using your browser (or the app) as your microphone
+
+If the game can't use your microphone, or you'd rather pick it in your browser, go to **Options -> Voice** and press
+**Use browser microphone**. This server's voice page opens in your browser, already linked to you: allow the
+microphone and leave the tab open (you can minimise it). Everything else stays the same: talk with your usual push to
+talk keys **in the game**, and the game still decides who hears you.
+
+* **Copy link for the app** copies your personal link for the Echoes Voice app (or another device). Don't share it:
+  anyone with it can talk as you until you leave the server.
+* **Use game microphone** switches back. Closing the tab does too.
+* The console command `voicelink` does the same (`voicelink open`, `copy`, `print`, `off`).
+
 ## Talking
 
 * **Push to talk** (default): hold **N** to talk to people nearby, **M** to talk over your headset radio.

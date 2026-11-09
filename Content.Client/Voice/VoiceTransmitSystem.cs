@@ -49,6 +49,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     [Dependency] private IClyde _clyde = default!;
     [Dependency] private IRealtimeAudioManager _realtime = default!;
     [Dependency] private VoiceCaptureSystem _capture = default!;
+    [Dependency] private VoiceExternalSystem _external = default!;
 
     private const int MaxPacketBytes = 1275;
 
@@ -486,9 +487,26 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
         }
     }
 
+    private bool _externalActive;
+
     private void Process()
     {
         var canTransmit = CanTransmit(out var speaker);
+
+        // The microphone is a voice webpage or app: the server does the rest, we only say what the keys are doing.
+        if (_external.Connected && !_testing)
+        {
+            ProcessExternal(speaker, canTransmit);
+            return;
+        }
+
+        if (_externalActive)
+        {
+            // Back to our own microphone. The server already ended whatever the page was sending.
+            _externalActive = false;
+            _transmitting = false;
+        }
+
         var wantsAudio = _testing
                          || canTransmit && (_mode == VoiceInputMode.VoiceActivation || _pttLocal || _pttRadio != 0
                                             || _deviceTransmit != null);
@@ -534,6 +552,44 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
             _accum.AsSpan(offset, _accumCount - offset).CopyTo(_accum);
             _accumCount -= offset;
         }
+    }
+
+    private void ProcessExternal(VoiceSpeakerComponent? speaker, bool canTransmit)
+    {
+        if (!_externalActive)
+        {
+            // Whatever our own microphone was sending stops here.
+            EndTransmission();
+            _externalActive = true;
+        }
+
+        _capture.Release(this);
+        InputLevelDb = -120f;
+
+        var device = _radioEnabled ? _deviceTransmit : null;
+        ProtoId<RadioChannelPrototype>? radioChannel = null;
+        var radio = device == null && _pttRadio != 0 && _radioEnabled && TryGetRadioKeyChannel(speaker, out radioChannel);
+        var keyed = canTransmit && (_pttLocal || _pttRadio != 0 || _deviceTransmit != null);
+
+        _external.SendKeys(new VoiceExternalKeyEvent
+        {
+            Keyed = keyed,
+            VoiceActivation = canTransmit && _mode == VoiceInputMode.VoiceActivation,
+            ActivationThreshold = _activationThreshold,
+            ActivationReleaseMs = _activationRelease,
+            Radio = keyed && radio,
+            RadioChannel = keyed && radio ? radioChannel?.Id : null,
+            Device = keyed ? device : null,
+        });
+
+        // What the server says it's sending, for our own indicators.
+        _transmitting = _external.Talking;
+        _transmittingRadio = radio;
+        _radioChannelSent = radio ? radioChannel?.Id : null;
+        _deviceSent = device;
+
+        var level = _external.Level;
+        _selfTarget = _transmitting ? new VoiceLevels(level, level * 0.8f, level * 0.6f, level) : default;
     }
 
     private void ProcessFrame(ReadOnlySpan<short> input, VoiceSpeakerComponent? speaker, bool canTransmit, TimeSpan now)

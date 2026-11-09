@@ -26,6 +26,7 @@ public sealed partial class VoiceTab : Control
 
     private VoiceTransmitSystem? _transmit;
     private VoiceCaptureSystem? _capture;
+    private VoiceExternalSystem? _external;
 
     public VoiceTab()
     {
@@ -34,6 +35,15 @@ public sealed partial class VoiceTab : Control
 
         _entMan.TrySystem(out _transmit);
         _entMan.TrySystem(out _capture);
+        _entMan.TrySystem(out _external);
+
+        ExternalOpenButton.OnPressed += _ => _external?.OpenWebpage();
+        ExternalCopyButton.OnPressed += _ =>
+        {
+            _external?.CopyLink();
+            ExternalCopyButton.Text = Loc.GetString("ui-options-voice-external-copied");
+        };
+        ExternalDisconnectButton.OnPressed += _ => _external?.Disconnect();
 
         Control.AddOptionCheckBox(CCVars.VoiceClientEnabled, EnabledCheckBox);
         Control.AddOptionDropDown(CCVars.VoiceInputDevice, DropDownInputDevice, BuildDeviceOptions());
@@ -152,6 +162,8 @@ public sealed partial class VoiceTab : Control
 
         StatusLabel.Text = GetStatus();
 
+        UpdateExternal();
+
         // Only meaningful (and only accurate) while connected: it's the server's setting.
         TranscribeNotice.Visible = _net.IsConnected && _cfg.GetCVar(CCVars.VoiceTranscribe);
 
@@ -162,6 +174,21 @@ public sealed partial class VoiceTab : Control
             ? radioBinding.GetKeyString()
             : Loc.GetString("ui-options-voice-unbound");
         PushToTalkHint.Text = Loc.GetString("ui-options-voice-ptt-hint", ("key", pttKey), ("radioKey", radioKey));
+    }
+
+    private void UpdateExternal()
+    {
+        ExternalSection.Visible = _external is { Available: true };
+        if (_external is not { Available: true })
+            return;
+
+        ExternalStatus.Text = !_external.Connected
+            ? Loc.GetString("ui-options-voice-external-status-off")
+            : Loc.GetString(_external.Kind == "app"
+                ? "ui-options-voice-external-status-app"
+                : "ui-options-voice-external-status-web");
+        ExternalDisconnectButton.Visible = _external.Connected;
+        ExternalOpenButton.Visible = !_external.Connected;
     }
 
     private string GetStatus()

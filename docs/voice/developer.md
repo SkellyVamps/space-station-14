@@ -290,3 +290,21 @@ seconds, or a second of silence). Spurts that are too short or too quiet are dro
 worker running an `IVoiceTranscriber` (`WhisperVoiceTranscriber`, Whisper.net), and results are logged on the main
 thread as `LogType.VoiceTranscript`. Tests set `TranscriberOverride` and listen to `Transcribed`; the integration test
 pool turns `voice.transcribe` off so the real model is never loaded there.
+
+## Voice webpage and app (external microphone)
+
+`VoiceWebManager` (IoC, server) adds a status host handler for `/voice`: the page (`Content.Server/Voice/External/Web`,
+embedded resources), `/voice/downloads` (JSON) and `/voice/download/<file>` (files in `<data>/voice-app/`), and the
+WebSocket `/voice/ws`. Each WebSocket runs on its own task so it doesn't hold one of the status host's few request
+slots.
+
+Protocol: the client sends `{"type":"hello","code":"...","kind":"web"|"app"}`, then binary audio messages: `0x01`,
+sequence (uint16 LE), one `ImaAdpcm` frame (20 ms of 16 kHz mono, 163 bytes). `{"type":"ping"}` keeps it alive. The
+server sends `welcome`, `state` (`talking`, `name`, `adminMuted`) and `pong`, and closes with 4001 (bad code), 4002
+(replaced / switched back), 4003 (left the game), 4004 (shutdown) or 4005 (disabled), with a reason to show.
+
+`VoiceExternalMicSystem` (server) drains frames on the main thread, gates them with the key state the game client
+reports (`VoiceExternalKeyEvent`), upsamples to 48 kHz, runs the speaker's voice chain, Opus-encodes and calls
+`VoiceSystem.HandleTransmit(..., fromServer: true)`. `VoiceExternalSystem` (client) gets the link and sends key
+state; `VoiceTransmitSystem` stops using the local microphone while connected. `ImaAdpcm` is mirrored by
+`voice-worklet.js`; `ImaAdpcmTest` checks both produce identical bytes.

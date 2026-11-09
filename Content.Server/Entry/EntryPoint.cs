@@ -74,6 +74,7 @@ namespace Content.Server.Entry
         [Dependency] private PlayerRateLimitManager _rateLimit = default!;
         [Dependency] private RulesManager _rules = default!;
         [Dependency] private ServerApi _serverApi = default!;
+        [Dependency] private Content.Server.Voice.External.VoiceWebManager _voiceWeb = default!;
         [Dependency] private ServerInfoManager _serverInfo = default!;
         [Dependency] private ServerUpdateManager _updateManager = default!;
         [Dependency] private ServerFeedbackManager _feedbackManager = null!;
@@ -128,6 +129,7 @@ namespace Content.Server.Entry
             _ghostKick.Initialize();
             _serverInfo.Initialize();
             _serverApi.Initialize();
+            _voiceWeb.Initialize();
             _voteManager.Initialize();
             _updateManager.Initialize();
             _playTimeTracking.Initialize();
@@ -204,6 +206,7 @@ namespace Content.Server.Entry
             }
 
             _serverApi.Shutdown();
+            _voiceWeb.Shutdown();
 
             // We don't care when or how this finishes, just spin the task off into the void.
             _ = _discordLink.Shutdown();

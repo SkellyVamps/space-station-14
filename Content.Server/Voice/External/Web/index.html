@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Voice - Echoes of the Void</title>
+    <link rel="stylesheet" href="/voice/voice.css">
+</head>
+<body>
+<main>
+    <header>
+        <div class="title">Echoes of the Void</div>
+        <div class="subtitle">Voice chat</div>
+    </header>
+
+    <section class="card" id="status-card">
+        <div class="status-row">
+            <span class="dot" id="status-dot"></span>
+            <span id="status-text">Starting...</span>
+        </div>
+        <p class="hint" id="status-hint"></p>
+        <button id="start" class="primary" hidden>Use my microphone</button>
+    </section>
+
+    <section class="card" id="mic-card" hidden>
+        <label for="device">Microphone</label>
+        <select id="device"></select>
+
+        <div class="meter-row">
+            <div class="meter"><div class="meter-fill" id="meter"></div></div>
+            <span class="talking" id="talking">Not talking</span>
+        </div>
+
+        <div class="buttons">
+            <button id="mute">Mute</button>
+        </div>
+
+        <p class="hint">
+            Talk with your push to talk keys <strong>in the game</strong>, as usual. You can minimise this tab, but keep
+            it open: closing it switches you back to the game's own microphone.
+        </p>
+    </section>
+
+    <section class="card" id="app-card">
+        <h2>Prefer an app?</h2>
+        <p class="hint">
+            The Echoes Voice app does the same thing without a browser tab. Open it, then use
+            <em>Connect</em> in the game, or paste this code into the app:
+        </p>
+        <div class="code-row" id="code-row" hidden>
+            <code id="code"></code>
+            <button id="copy">Copy</button>
+        </div>
+        <div id="downloads"><p class="hint">Looking for downloads...</p></div>
+    </section>
+
+    <footer>Only your voice is sent, and only to this game server. Nothing is recorded by this page.</footer>
+</main>
+<script src="/voice/voice.js"></script>
+</body>
+</html>

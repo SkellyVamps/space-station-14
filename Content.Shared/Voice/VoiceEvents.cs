@@ -162,3 +162,83 @@ public sealed class VoiceSetRangeEvent(VoiceRangeMode mode) : EntityEventArgs
 {
     public VoiceRangeMode Mode = mode;
 }
+
+/// <summary>
+/// Client to server: give me a link to connect the voice webpage (or the standalone voice app) as my microphone.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceExternalLinkRequestEvent : EntityEventArgs;
+
+/// <summary>
+/// Server to client: where the voice webpage is, and the code that ties it to this player. The page reads the code
+/// from the link; the standalone app can be given the whole link or just the code.
+/// </summary>
+/// <param name="baseUrl">The server's public web address, or null if not configured: the client then uses the address
+/// it connected to.</param>
+[Serializable, NetSerializable]
+public sealed class VoiceExternalLinkEvent(string? baseUrl, string code) : EntityEventArgs
+{
+    public string? BaseUrl = baseUrl;
+    public string Code = code;
+}
+
+/// <summary>
+/// Client to server: forget the voice webpage / app connection and go back to the game's own microphone.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceExternalDisconnectEvent : EntityEventArgs;
+
+/// <summary>
+/// Server to client: whether a voice webpage or app is connected as this player's microphone, and whether it's sending
+/// voice right now (and how loud, 0-255, for the speaking indicators).
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceExternalStatusEvent(bool connected, string? kind, bool talking, byte level) : EntityEventArgs
+{
+    public bool Connected = connected;
+
+    /// <summary>
+    /// "web" or "app".
+    /// </summary>
+    public string? Kind = kind;
+
+    public bool Talking = talking;
+    public byte Level = level;
+}
+
+/// <summary>
+/// Client to server: what the player's talk keys are doing, while their microphone is a voice webpage or app. The
+/// server only lets that audio through accordingly. Sent when it changes.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceExternalKeyEvent : EntityEventArgs
+{
+    /// <summary>
+    /// A talk key (or an intercom's button) is held, and the player may talk.
+    /// </summary>
+    public bool Keyed;
+
+    /// <summary>
+    /// Voice activation: talk whenever louder than <see cref="ActivationThreshold"/>, without holding a key.
+    /// </summary>
+    public bool VoiceActivation;
+
+    public float ActivationThreshold;
+    public int ActivationReleaseMs;
+
+    public bool Radio;
+    public string? RadioChannel;
+    public NetEntity? Device;
+
+    public bool SameAs(VoiceExternalKeyEvent? other)
+    {
+        return other != null
+               && Keyed == other.Keyed
+               && VoiceActivation == other.VoiceActivation
+               && Math.Abs(ActivationThreshold - other.ActivationThreshold) < 0.01f
+               && ActivationReleaseMs == other.ActivationReleaseMs
+               && Radio == other.Radio
+               && RadioChannel == other.RadioChannel
+               && Device == other.Device;
+    }
+}

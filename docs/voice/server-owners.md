@@ -140,6 +140,32 @@ Requires the `MODERATOR` flag (`voicestats`: `DEBUG`). Mutes, unmutes, voice rec
 packet abuse are written to the admin log under the `Voice` log type. Audio is never logged or stored; what people say
 is logged as text, see below.
 
+## Voice webpage and app
+
+Players can use their browser, or the standalone Echoes Voice app, as their microphone instead of the game's. The
+server itself serves the page at **`/voice`** on its web (status) port, the same port as the hub and launcher use, so
+there's nothing else to run or open: it's part of the game server process.
+
+* **HTTPS is required** for players connecting from other computers (browsers only allow microphones on secure
+  pages; the same computer is fine without). With a Cloudflare Tunnel or reverse proxy that already serves the status
+  port on a domain, set `voice.external_public_url` to that address, e.g. `https://ss14.example.com`. If unset,
+  `hub.server_url` is used (`ss14s://` becomes `https://`), else the address the player connected to.
+* WebSockets must pass through (Cloudflare Tunnels do by default).
+* **App downloads:** put the app's files (`.zip`, `.exe`, `.dmg`, `.AppImage`...) in `voice-app/` in the server's data
+  folder and the page lists them, served by the server; or set `voice.external_app_download_url` to link elsewhere
+  (e.g. your GitHub releases).
+
+| CVar | Default | Description |
+|---|---|---|
+| `voice.external_enabled` | `true` | Allow the voice webpage / app |
+| `voice.external_public_url` | empty | Public https address of the server's web port |
+| `voice.external_app_download_url` | empty | Where the page links for the app (empty: files in `voice-app/`) |
+
+Linking is safe: the page or app proves who it is with a random code the game handed to that player over their own
+logged-in connection, valid until they leave the server. The page only records; the server only lets the audio
+through while the player's talk keys in the game say so, then gives it their character's voice and treats it like any
+other voice (routing, radio, mutes, voice-to-text...).
+
 ## Voice-to-text
 
 Everything players say over voice chat is converted to text on the server and written to the admin logs under its own

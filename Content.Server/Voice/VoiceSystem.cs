@@ -269,7 +269,9 @@ public sealed partial class VoiceSystem : EntitySystem
     /// Processes a voice frame sent by <paramref name="session"/>. The speaker is always the session's attached
     /// entity.
     /// </summary>
-    public void HandleTransmit(ICommonSession session, MsgVoiceTransmit msg)
+    /// <param name="fromServer">Made by the server itself from the player's voice webpage or app
+    /// (<see cref="External.VoiceExternalMicSystem"/>), which keeps its own sequence numbers and rate limit.</param>
+    public void HandleTransmit(ICommonSession session, MsgVoiceTransmit msg, bool fromServer = false)
     {
         Stats.PacketsReceived++;
 
@@ -283,7 +285,7 @@ public sealed partial class VoiceSystem : EntitySystem
         var state = GetState(session);
         var now = _timing.RealTime;
 
-        if (!Validate(msg, state, now, out var reason))
+        if (!Validate(msg, state, now, fromServer, out var reason))
         {
             Stats.PacketsRejected++;
             NoteAbuse(session, state, now, reason);
@@ -423,7 +425,7 @@ public sealed partial class VoiceSystem : EntitySystem
     /// <summary>
     /// Validates a packet's structure and rate. Never trusts anything the client says about who it is.
     /// </summary>
-    private bool Validate(MsgVoiceTransmit msg, SpeakerState state, TimeSpan now, out string reason)
+    private bool Validate(MsgVoiceTransmit msg, SpeakerState state, TimeSpan now, bool fromServer, out string reason)
     {
         var payload = msg.Payload;
         var endOfSpurt = (msg.Flags & VoiceTransmitFlags.EndOfSpurt) != 0;
@@ -465,6 +467,12 @@ public sealed partial class VoiceSystem : EntitySystem
         {
             reason = "radio and device at once";
             return false;
+        }
+
+        if (fromServer)
+        {
+            reason = string.Empty;
+            return true;
         }
 
         if (!state.Limiter.TryConsume(now, audioMs, _maxPacketsPerSecond, _maxBurstMs))

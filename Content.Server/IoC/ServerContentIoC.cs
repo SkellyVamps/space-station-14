@@ -84,5 +84,6 @@ internal static class ServerContentIoC
         deps.Register<ISharedFeedbackManager, ServerFeedbackManager>();
         deps.Register<WhitelistManager>();
         deps.Register<Content.Shared.Voice.VoiceNetManager>();
+        deps.Register<Content.Server.Voice.External.VoiceWebManager>();
     }
 }

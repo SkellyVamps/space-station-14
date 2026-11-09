@@ -1,0 +1,198 @@
+:root {
+    --bg: #0e0e12;
+    --card: #17171d;
+    --border: #2c2c36;
+    --text: #e6e6ea;
+    --muted: #9a9aa6;
+    --accent: #c9a24a;
+    --good: #4ec36b;
+    --bad: #e05050;
+    --talk: #ededed;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 "Segoe UI", "Noto Sans", system-ui, sans-serif;
+}
+
+main {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+}
+
+header {
+    margin-bottom: 18px;
+}
+
+.title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+}
+
+.subtitle {
+    color: var(--muted);
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+
+h2 {
+    font-size: 16px;
+    margin: 0 0 6px;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex: none;
+}
+
+.dot.good {
+    background: var(--good);
+}
+
+.dot.bad {
+    background: var(--bad);
+}
+
+.hint {
+    color: var(--muted);
+    margin: 8px 0 0;
+}
+
+label {
+    display: block;
+    color: var(--muted);
+    margin-bottom: 4px;
+}
+
+select, button {
+    font: inherit;
+    color: var(--text);
+    background: #22222b;
+    border: 1px solid var(--border);
+    padding: 7px 12px;
+}
+
+select {
+    width: 100%;
+}
+
+button {
+    cursor: pointer;
+}
+
+button:hover {
+    border-color: var(--accent);
+}
+
+button.primary {
+    margin-top: 12px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #111;
+    font-weight: 600;
+}
+
+button.on {
+    background: var(--bad);
+    border-color: var(--bad);
+    color: #fff;
+}
+
+.meter-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.meter {
+    flex: 1;
+    height: 10px;
+    background: #0a0a0d;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.meter-fill {
+    height: 100%;
+    width: 0;
+    background: var(--good);
+    transition: width 60ms linear;
+}
+
+.talking {
+    min-width: 90px;
+    text-align: right;
+    color: var(--muted);
+}
+
+.talking.on {
+    color: var(--talk);
+    font-weight: 600;
+}
+
+.buttons {
+    margin-top: 12px;
+}
+
+.code-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+code {
+    flex: 1;
+    font: 600 16px/1 ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+    letter-spacing: 0.08em;
+    padding: 8px 10px;
+    background: #0a0a0d;
+    border: 1px solid var(--border);
+    overflow-wrap: anywhere;
+}
+
+#downloads ul {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0;
+}
+
+#downloads li {
+    margin: 4px 0;
+}
+
+a {
+    color: var(--accent);
+}
+
+footer {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 18px;
+}
