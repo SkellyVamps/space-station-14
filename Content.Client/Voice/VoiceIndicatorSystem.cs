@@ -72,6 +72,7 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
             .Register<VoiceIndicatorSystem>();
 
         Subs.CVar(_cfg, CCVars.VoiceShowIndicators, SetOverlayEnabled, true);
+        Subs.CVar(_cfg, CCVars.VoiceShowRangeCircle, SetRangeCircleEnabled, true);
         Subs.CVar(_cfg, CCVars.VoiceShowRadioPanel, v => _showPanel = v, true);
         Subs.CVar(_cfg, CCVars.VoiceClientEnabled, v => _clientEnabled = v, true);
         Subs.CVar(_cfg, CCVars.VoiceEnabled, v => _serverEnabled = v, true);
@@ -85,7 +86,9 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
     {
         base.Shutdown();
         CommandBinds.Unregister<VoiceIndicatorSystem>();
-        SetOverlayEnabled(false);
+        _showMeters = false;
+        _showRangeCircle = false;
+        UpdateOverlay();
 
         if (_panel != null)
         {
@@ -95,11 +98,31 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
         }
     }
 
+    private bool _showMeters;
+    private bool _showRangeCircle;
+
     private void SetOverlayEnabled(bool enabled)
     {
-        if (enabled)
+        _showMeters = enabled;
+        UpdateOverlay();
+    }
+
+    private void SetRangeCircleEnabled(bool enabled)
+    {
+        _showRangeCircle = enabled;
+        UpdateOverlay();
+    }
+
+    /// <summary>
+    /// One overlay draws both the level meters and the range circle; it's there while either is wanted.
+    /// </summary>
+    private void UpdateOverlay()
+    {
+        if (_showMeters || _showRangeCircle)
         {
             _overlay ??= new VoiceIndicatorOverlay(EntityManager, _player, _proto);
+            _overlay.ShowMeters = _showMeters;
+            _overlay.ShowRangeCircle = _showRangeCircle;
             if (!_overlays.HasOverlay<VoiceIndicatorOverlay>())
                 _overlays.AddOverlay(_overlay);
         }
@@ -359,7 +382,7 @@ public sealed partial class VoiceIndicatorSystem : EntitySystem
         };
 
         _panel.ListenToggled += SetListening;
-        _panel.RangePressed += _transmit.CycleRange;
+        _panel.RangeSelected += _transmit.SetRange;
         _panel.MutePressed += () => _transmit.SetSelfMuted(!_transmit.SelfMuted);
         _panel.VolumeChanged += SetChannelVolume;
         _ui.WindowRoot.OnResized += PlacePanel;

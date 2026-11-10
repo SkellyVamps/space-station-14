@@ -55,6 +55,7 @@
                 <ui:OptionSlider Name="SliderJitterBuffer" Title="{Loc 'ui-options-voice-jitter-buffer'}" />
                 <ui:OptionSlider Name="SliderDucking" Title="{Loc 'ui-options-voice-ducking'}" />
                 <CheckBox Name="IndicatorsCheckBox" Text="{Loc 'ui-options-voice-indicators'}" />
+                <CheckBox Name="RangeCircleCheckBox" Text="{Loc 'ui-options-voice-range-circle'}" />
                 <BoxContainer Orientation="Horizontal">
                     <CheckBox Name="RadioPanelCheckBox" Text="{Loc 'ui-options-voice-radio-panel'}" />
                     <Button Name="RadioPanelResetButton" Text="{Loc 'ui-options-voice-radio-panel-reset'}"

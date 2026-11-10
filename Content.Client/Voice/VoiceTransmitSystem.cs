@@ -185,6 +185,11 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
     public VoiceRangeMode Range { get; private set; } = VoiceRangeMode.Talk;
 
     /// <summary>
+    /// When <see cref="Range"/> last changed (real time), for showing the range circle for a moment.
+    /// </summary>
+    public TimeSpan RangeChangedAt { get; private set; }
+
+    /// <summary>
     /// We muted our own microphone: nothing is sent, whatever keys are held.
     /// </summary>
     public bool SelfMuted { get; private set; }
@@ -298,6 +303,7 @@ public sealed partial class VoiceTransmitSystem : EntitySystem
             return;
 
         Range = mode;
+        RangeChangedAt = _timing.RealTime;
         SendRange();
     }
 

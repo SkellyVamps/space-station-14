@@ -1,4 +1,8 @@
 using System.Numerics;
+using Robust.Shared.Timing;
+using Robust.Shared.Map;
+using Robust.Shared.Configuration;
+using Content.Shared.CCVar;
 using Content.Shared.Radio;
 using Content.Shared.Voice;
 using Robust.Client.Graphics;
@@ -30,7 +34,7 @@ public sealed class VoiceIndicatorOverlay : Overlay
     private const float BarMaxHeight = 7f;
 
     public static readonly Color TalkColor = Color.FromHex("#EDEDED");
-    public static readonly Color WhisperColor = Color.FromHex("#9DB8E6");
+    public static readonly Color WhisperColor = Color.FromHex("#3D7BE0");
     public static readonly Color ShoutColor = Color.FromHex("#F2994A");
     public static readonly Color BlockedColor = Color.FromHex("#E05050");
 
@@ -41,6 +45,24 @@ public sealed class VoiceIndicatorOverlay : Overlay
     private readonly VoiceTransmitSystem _transmit;
     private readonly SharedTransformSystem _xform;
     private readonly VoiceIndicatorSystem _indicators;
+
+    private readonly IConfigurationManager _cfg;
+    private readonly IGameTiming _timing;
+
+    /// <summary>
+    /// After switching between whisper, talk and shout, the range circle shows this long, then fades.
+    /// </summary>
+    private static readonly TimeSpan RangeCircleTime = TimeSpan.FromSeconds(2.5);
+
+    /// <summary>
+    /// Draw the level meters over heads (the player can turn them off).
+    /// </summary>
+    public bool ShowMeters = true;
+
+    /// <summary>
+    /// Draw the circle showing how far our voice reaches.
+    /// </summary>
+    public bool ShowRangeCircle = true;
 
     private readonly List<HeardVoice> _heard = new();
     private readonly Dictionary<EntityUid, (VoiceLevels Levels, Color Color, bool Talking)> _meters = new();
@@ -56,6 +78,8 @@ public sealed class VoiceIndicatorOverlay : Overlay
         _transmit = ent.System<VoiceTransmitSystem>();
         _xform = ent.System<SharedTransformSystem>();
         _indicators = ent.System<VoiceIndicatorSystem>();
+        _cfg = IoCManager.Resolve<IConfigurationManager>();
+        _timing = IoCManager.Resolve<IGameTiming>();
     }
 
     protected override void Draw(in OverlayDrawArgs args)
@@ -63,6 +87,12 @@ public sealed class VoiceIndicatorOverlay : Overlay
         var handle = args.WorldHandle;
         var eye = args.Viewport.Eye;
         if (eye == null)
+            return;
+
+        if (ShowRangeCircle)
+            DrawRangeCircle(handle, args.MapId);
+
+        if (!ShowMeters)
             return;
 
         _meters.Clear();
@@ -112,6 +142,54 @@ public sealed class VoiceIndicatorOverlay : Overlay
         }
 
         handle.SetTransform(Matrix3x2.Identity);
+    }
+
+    /// <summary>
+    /// A circle around us showing how far our voice carries: always while whispering (stronger while actually
+    /// talking), and for a moment after switching between whisper, talk and shout.
+    /// </summary>
+    private void DrawRangeCircle(DrawingHandleWorld handle, MapId map)
+    {
+        if (_player.LocalEntity is not { } local
+            || !_ent.TryGetComponent(local, out TransformComponent? xform)
+            || xform.MapID != map
+            || !_transmit.CanTransmit(out _))
+        {
+            return;
+        }
+
+        var range = _transmit.Range;
+        var sinceChange = _timing.RealTime - _transmit.RangeChangedAt;
+        var talking = _transmit.Transmitting && _transmit.TransmitChannel == null;
+
+        float alpha;
+        if (range == VoiceRangeMode.Whisper)
+            alpha = talking ? 1f : 0.65f;
+        else if (_transmit.RangeChangedAt != TimeSpan.Zero && sinceChange < RangeCircleTime)
+            alpha = 1f - (float) (sinceChange / RangeCircleTime);
+        else
+            return;
+
+        // Same distances the server uses: the talking range, scaled for a whisper or a shout.
+        var scale = range switch
+        {
+            VoiceRangeMode.Whisper => _cfg.GetCVar(CCVars.VoiceWhisperRangeScale),
+            VoiceRangeMode.Shout => _cfg.GetCVar(CCVars.VoiceShoutRangeScale),
+            _ => 1f,
+        };
+        var radius = _cfg.GetCVar(CCVars.VoiceRange) * scale;
+        if (radius <= 0f)
+            return;
+
+        var center = _xform.GetMapCoordinates(local, xform).Position;
+        var color = RangeColor(range);
+        // A light fill, and a doubled edge so it reads against dark floors too.
+        // Only a whisper's circle is small enough to fill; talking and shouting reach past most of the screen.
+        if (range == VoiceRangeMode.Whisper)
+            handle.DrawCircle(center, radius, color.WithAlpha(0.12f * alpha));
+        handle.DrawCircle(center, radius, color.WithAlpha(alpha), false);
+        handle.DrawCircle(center, radius - 1f / EyeManager.PixelsPerMeter, color.WithAlpha(alpha * 0.8f), false);
+        handle.DrawCircle(center, radius - 2f / EyeManager.PixelsPerMeter, Color.Black.WithAlpha(alpha * 0.5f), false);
     }
 
     private void Merge(EntityUid uid, VoiceLevels levels, Color color, bool talking)

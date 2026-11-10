@@ -47,7 +47,8 @@ public sealed class VoiceRadioPanel : Control
     private readonly ScrollContainer _listenScroll;
     private readonly Label _noChannels;
     private readonly Button _expand;
-    private readonly Button _range;
+    private readonly Slider _range;
+    private readonly Label _rangeLabel;
     private readonly Button _mute;
 
     private static readonly Color MutedColor = Color.FromHex("#E04545");
@@ -69,9 +70,9 @@ public sealed class VoiceRadioPanel : Control
     public event Action<bool>? ExpandedChanged;
 
     /// <summary>
-    /// The whisper / talk / shout button was clicked.
+    /// The player moved the whisper / talk / shout slider.
     /// </summary>
-    public event Action? RangePressed;
+    public event Action<VoiceRangeMode>? RangeSelected;
 
     /// <summary>
     /// The microphone mute button was clicked.
@@ -114,12 +115,40 @@ public sealed class VoiceRadioPanel : Control
             ExpandedChanged?.Invoke(args.Pressed);
         };
 
-        _range = new Button
+        // Three stops: whisper, talk, shout.
+        _range = new Slider
         {
-            MinWidth = 62,
+            MinValue = 0,
+            MaxValue = 2,
+            Rounded = true,
+            Value = (int) VoiceRangeMode.Talk,
+            HorizontalExpand = true,
+            VerticalAlignment = VAlignment.Center,
             ToolTip = Loc.GetString("voice-panel-range-tooltip"),
         };
-        _range.OnPressed += _ => RangePressed?.Invoke();
+        _range.OnValueChanged += range =>
+        {
+            var mode = (VoiceRangeMode) Math.Clamp((int) MathF.Round(range.Value), 0, 2);
+            RangeSelected?.Invoke(mode);
+        };
+
+        _rangeLabel = new Label
+        {
+            MinWidth = 58,
+            VerticalAlignment = VAlignment.Center,
+            ToolTip = Loc.GetString("voice-panel-range-tooltip"),
+        };
+
+        var rangeRow = new BoxContainer
+        {
+            Orientation = BoxContainer.LayoutOrientation.Horizontal,
+            Margin = new Thickness(0, 3, 0, 0),
+            Children =
+            {
+                _rangeLabel,
+                _range,
+            },
+        };
 
         _mute = new Button
         {
@@ -140,10 +169,15 @@ public sealed class VoiceRadioPanel : Control
                     HorizontalExpand = true,
                     VerticalAlignment = VAlignment.Center,
                 },
-                _range,
                 _mute,
                 _expand,
             },
+        };
+
+        var headerBlock = new BoxContainer
+        {
+            Orientation = BoxContainer.LayoutOrientation.Vertical,
+            Children = { header, rangeRow },
         };
 
         _speakers = new BoxContainer
@@ -217,7 +251,7 @@ public sealed class VoiceRadioPanel : Control
             Orientation = BoxContainer.LayoutOrientation.Vertical,
             Children =
             {
-                new PanelContainer { PanelOverride = background, Children = { header } },
+                new PanelContainer { PanelOverride = background, Children = { headerBlock } },
                 _speakers,
                 _settings,
             },
@@ -248,10 +282,14 @@ public sealed class VoiceRadioPanel : Control
             _ => "voice-range-talk",
         });
 
-        if (_range.Text != rangeText)
-            _range.Text = rangeText;
+        if (_rangeLabel.Text != rangeText)
+            _rangeLabel.Text = rangeText;
 
-        _range.Label.FontColorOverride = rangeColor;
+        _rangeLabel.FontColorOverride = rangeColor;
+
+        // Follow changes made elsewhere (the keybind), but never fight the player dragging it.
+        if (!_range.Grabbed && (int) MathF.Round(_range.Value) != (int) range)
+            _range.SetValueWithoutEvent((int) range);
 
         string muteText;
         string tooltip;

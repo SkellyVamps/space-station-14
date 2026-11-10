@@ -37,14 +37,15 @@ talk keys **in the game**, and the game still decides who hears you.
   Raise the threshold if background noise keeps triggering it.
 * While you type in chat or any text box, push to talk is ignored.
 * A small **level meter** (three bars that move with their voice) appears above anyone talking, yourself included.
-  It's white for normal talking, blue-grey for a whisper, orange for a shout, the channel's colour when you talk on the
+  It's white for normal talking, blue for a whisper, orange for a shout, the channel's colour when you talk on the
   radio or an intercom plays someone, and red when you try to talk but can't be heard. It only shows for people you
   can actually see: someone talking behind a wall or inside a locker is heard, but not marked.
 
 ### Whisper, talk, shout
 
-The **Talk** button at the top of the voice panel switches between **Whisper** (only the people right next to you),
-**Talk** and **Shout** (across a room). Walls and doors still muffle you. You can also bind a key to it in
+The slider at the top of the voice panel picks **Whisper** (only the people right next to you), **Talk** or **Shout**
+(across a room). While whispering, a blue circle around you shows how far you're heard; switching shows the new range
+for a moment (Options -> Voice can turn the circle off). Walls and doors still muffle you. You can also bind a key to it in
 Options -> Controls ("Voice: switch whisper / talk / shout"). It only changes your voice in person, not the radio.
 
 ### Muting your microphone

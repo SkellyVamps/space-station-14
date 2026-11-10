@@ -74,6 +74,7 @@ public sealed partial class VoiceTab : Control
         Control.AddOption(new OptionSliderFloatCVar(Control, _cfg, CCVars.VoiceDucking,
             SliderDucking, 0f, 0.9f, 0.05f, FormatOffPercent));
         Control.AddOptionCheckBox(CCVars.VoiceShowIndicators, IndicatorsCheckBox);
+        Control.AddOptionCheckBox(CCVars.VoiceShowRangeCircle, RangeCircleCheckBox);
         Control.AddOptionCheckBox(CCVars.VoiceShowRadioPanel, RadioPanelCheckBox);
 
         Control.Initialize();

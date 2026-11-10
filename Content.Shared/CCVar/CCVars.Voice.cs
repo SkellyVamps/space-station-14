@@ -434,6 +434,13 @@ public sealed partial class CCVars
         CVarDef.Create("voice.show_indicators", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
+    ///     Whether to draw a circle around yourself showing how far your voice reaches: always while whispering, and
+    ///     for a moment after switching between whisper, talk and shout.
+    /// </summary>
+    public static readonly CVarDef<bool> VoiceShowRangeCircle =
+        CVarDef.Create("voice.show_range_circle", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
     ///     Whether to show the radio panel (who is talking on the radio, which channels to listen and talk on).
     /// </summary>
     public static readonly CVarDef<bool> VoiceShowRadioPanel =

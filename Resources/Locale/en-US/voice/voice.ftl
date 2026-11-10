@@ -99,6 +99,7 @@ ui-options-voice-radio-volume = Radio voice volume
 ui-options-voice-jitter-buffer = Network buffer (smoothness vs. delay)
 ui-options-voice-ducking = Lower game sounds while someone talks
 ui-options-voice-indicators = Show speaking indicators
+ui-options-voice-range-circle = Show how far your voice reaches (a circle while whispering, or when you switch)
 ui-options-voice-radio-panel = Show radio panel
 ui-options-voice-radio-panel-reset = Reset radio panel position
 ui-options-voice-mute-hint = To mute or change the volume of a specific player, right click them and use the Voice menu.
@@ -171,7 +172,7 @@ voice-panel-route-cant-speak = Can't speak
 voice-range-whisper = Whisper
 voice-range-talk = Talk
 voice-range-shout = Shout
-voice-panel-range-tooltip = How far your voice carries: whisper for the people next to you, shout across a room. Click to switch.
+voice-panel-range-tooltip = How far your voice carries: whisper for the people next to you, shout across a room. Slide to switch; the circle around you shows how far you're heard.
 
 voice-panel-mute-off = Mic on
 voice-panel-mute-off-tooltip = Your microphone is on. Click to mute it.
