@@ -5,78 +5,18 @@
 Voice is on by default. Toggle it live with `cvar voice.enabled false`. Clients hide voice and the server drops all
 voice packets when it's off.
 
-Voice uses the normal game connection (the same UDP port as the game, `net.port`, default 1212). No extra ports,
-relays or third-party services. Nothing is recorded; the server forwards Opus frames without decoding or storing them.
+Voice to players uses the normal game connection (the same UDP port as the game, `net.port`, default 1212).
+Microphones connect to the server's web (status) port, the same port the hub and launcher use. No extra ports, relays
+or third-party services. Audio is never recorded.
 
 ## Client distribution
 
-SS14 delivers a server's build in two parts:
+Nothing special: the server runs on the **official** RobustToolbox engine, so players join with the **official
+launcher**, from the hub or by address, and the game downloads this server's content as usual. There is no engine or
+launcher to build or publish.
 
-* **Content** (all `Content.*` code, prototypes, resources, every voice system) comes from your server, as usual.
-* **Engine** (RobustToolbox) is fetched by the launcher **by version number** from an engine manifest, and the loader
-  checks the engine's signature before running it.
-
-Voice chat needs a modified engine, so this setup uses three repositories:
-
-| Repository | Branch | Role |
-|---|---|---|
-| `SkellyVamps/space-station-14` | your server branch | Content. Its `RobustToolbox` submodule points at the engine fork |
-| `SkellyVamps/RobustToolbox` | `voice-chat-engine` | Engine with voice primitives. Version `293.0.1.1` = upstream `293.0.1` + voice build 1. Tagging publishes signed builds and updates `manifest.json` on the `robust-builds` branch |
-| `SkellyVamps/SS14.Launcher` | `voice-chat` | Launcher players install. Merges your engine manifest with the official one and trusts your signing key as well as the official one |
-
-Official engine versions are never overridden, so the fork launcher keeps working for every official server. Official
-launchers can't run the fork engine, so players must use your launcher for your server.
-
-### One-time setup
-
-1. **Create the signing key** on your own machine. Keep `engine_signing_key.pem` private: anyone with it can make
-   engines your players' launchers will run.
-   ```bash
-   openssl genpkey -algorithm ed25519 -out engine_signing_key.pem
-   openssl pkey -in engine_signing_key.pem -pubout -out signing_key_custom
-   ```
-2. **Store the private key** in `SkellyVamps/RobustToolbox` -> Settings -> Secrets and variables -> Actions -> New
-   repository secret, named `ENGINE_SIGNING_KEY`, with the full contents of `engine_signing_key.pem`.
-3. **Enable Actions on both forks.** GitHub disables workflows on new forks: open each fork's Actions tab and enable them.
-4. **Add the public key to the launcher.** Commit `signing_key_custom` as `SS14.Launcher/signing_key_custom` on the
-   launcher's `voice-chat` branch.
-
-### Publishing an engine build
-
-The engine version in `RobustToolbox/MSBuild/Robust.Engine.Version.props` must match the tag.
-
-```bash
-cd RobustToolbox
-git tag v293.0.1.1
-git push origin v293.0.1.1
-```
-
-`publish-fork-build.yml` builds Windows/macOS/Linux/FreeBSD clients, attaches them to a GitHub release, signs them and
-adds them to `https://raw.githubusercontent.com/SkellyVamps/RobustToolbox/robust-builds/manifest.json`.
-The engine build must be published **before** players join a server running that engine version.
-
-### Publishing the launcher
-
-On the launcher's `voice-chat` branch, push a tag (e.g. `v0.40.3-voice1`). `publish-release.yml` creates a GitHub
-release with Windows, macOS and Linux zips. Point players at that release page. The launcher builds aren't
-code-signed, so Windows SmartScreen and macOS Gatekeeper will warn on first launch.
-
-### Running the server
-
-Build and host the server from this repository as usual. The server advertises `build.engine_version` = `293.0.1.1`
-automatically (from the engine fork's version), whether you host the client zip yourself or use a CDN.
-Your server still appears on the official hub; players without your launcher get an "engine version not found" error.
-
-### Updating to a newer upstream engine
-
-1. In `SkellyVamps/RobustToolbox`, merge the upstream release tag into `voice-chat-engine`.
-2. Set the version to `<upstream version>.1` (e.g. `294.0.0.1`), commit, tag `v294.0.0.1`, push the tag.
-3. Bump the content repo's `RobustToolbox` submodule to that commit, as you would for an upstream engine update.
-
-### Updating the launcher
-
-Merge upstream SS14.Launcher into `voice-chat` (the fork's changes are small and marked "Voice chat fork"), then tag a
-new release. See `VOICE_FORK.md` in the launcher fork.
+Players connect their microphone with the voice webpage or the Echoes Voice app (see below); the game tells them how
+in Options -> Voice.
 
 ## Configuration
 
@@ -114,9 +54,6 @@ All CVars are in `Content.Shared/CCVar/CCVars.Voice.cs`. Server ones (put them i
 | `voice.creature_noise_delay` | `0.4` | Seconds of talking before a creature that can't speak makes its first noise |
 | `voice.creature_noise_interval` | `1.5` | Average seconds between its noises while it keeps talking |
 | `voice.profile_max_pitch` / `_formant` | `6` / `4` | Limits (semitones) for character voices |
-| `voice.bitrate` | `24000` | Opus bitrate clients use |
-| `voice.frame_ms` | `20` | Frame size: 10, 20, 40 or 60 |
-| `voice.expected_loss` | `10` | Packet loss % the encoder protects against (FEC) |
 | `voice.max_packet_bytes` | `400` | Largest accepted frame |
 | `voice.max_packets_per_second` | `60` | Packet rate limit per client |
 | `voice.max_burst_ms` | `400` | Audio a client may send ahead of real time |
@@ -207,16 +144,17 @@ Muted players are told why they can't talk (Options -> Voice shows the status).
 
 ## Bandwidth and performance
 
-* Per active stream: ~24 kbit/s Opus + headers, roughly 35-40 kbit/s on the wire.
-* Each speaker uploads one stream; the server sends one copy per listener who can hear them.
-  10 people talking at once, each heard by 8 others, is ~80 streams, about 3 Mbit/s outgoing.
-* Server CPU: no audio processing. Recipient lists are rebuilt a few times a second per *active* speaker using cached
-  acoustic fields, which take on the order of tens of microseconds each (see `voicestats` and the benchmark).
-* Client CPU: one encoder and the speaker's effect chain when talking; one decoder plus light filtering per audible
-  speaker.
+* Per active stream: 64 kbit/s ADPCM + headers, roughly 75 kbit/s on the wire.
+* Each player's page or app uploads one stream (about 70 kbit/s, all the time while connected); the server sends one
+  copy per listener who can hear them. 10 people talking at once, each heard by 8 others, is ~80 streams, about
+  6 Mbit/s outgoing.
+* Server CPU: each talking player's voice effects (a few percent of one core for several speakers), recipient lists
+  rebuilt a few times a second per *active* speaker from cached acoustic fields (see `voicestats` and the
+  benchmark), and voice-to-text if on.
+* Client CPU: one decoder plus light filtering per audible speaker.
 
 ## Network considerations
 
-* Voice is sent unreliably (UDP, no retransmission) to keep latency low; the jitter buffer and Opus FEC hide moderate
-  loss. Players on bad connections can raise "Network buffer" in Options -> Voice.
-* Voice doesn't need any additional firewall rules beyond the game port.
+* Voice is sent unreliably (UDP, no retransmission) to keep latency low; the jitter buffer and loss concealment hide
+  moderate loss. Players on bad connections can raise "Network buffer" in Options -> Voice.
+* Voice doesn't need any firewall rules beyond the game port and its web (status) port, which servers expose anyway.

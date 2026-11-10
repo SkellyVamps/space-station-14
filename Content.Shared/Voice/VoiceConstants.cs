@@ -11,7 +11,7 @@ public static class VoiceConstants
     public const int SampleRate = 48000;
 
     /// <summary>
-    /// Hard cap for a single Opus payload on the wire. The server applies a stricter configurable limit.
+    /// Hard cap for a single voice payload on the wire. The server applies a stricter configurable limit.
     /// </summary>
     public const int MaxWirePayloadBytes = 1275;
 

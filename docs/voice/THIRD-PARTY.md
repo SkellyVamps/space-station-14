@@ -2,8 +2,9 @@
 
 | Library | Version | Where | Licence | Notes |
 |---|---|---|---|---|
-| [Concentus](https://github.com/lostromb/concentus) | 2.2.2 (NuGet) | RobustToolbox `Robust.Shared` | BSD-3-Clause (Opus licence, © Xiph.Org Foundation, Skype Limited, CSIRO, Microsoft, et al.) | Pure managed C# port of the Opus codec. No native binaries are shipped. Wrapped by `Robust.Shared.Audio.Codecs`, not exposed to content directly. |
-| OpenAL Soft (existing) | engine | RobustToolbox | LGPL-2.0 (dynamically loaded, already shipped with the engine) | Capture uses the standard `ALC_EXT_CAPTURE` API through the engine's existing OpenTK bindings. |
+| [Whisper.net](https://github.com/sandrohanea/whisper.net) / whisper.cpp | 1.9.1 (NuGet) | `Content.Server` (voice-to-text) | MIT | Speech recognition models (OpenAI Whisper, MIT) are downloaded at runtime, not shipped. |
+| [Avalonia](https://avaloniaui.net/) | 11.3 (NuGet) | `EchoesVoice` app | MIT | The app's window. |
+| OpenAL Soft | via `Robust.Natives.OpenAL` | `EchoesVoice` app | LGPL-2.0 (dynamically loaded) | Microphone capture in the app, the same library the game uses for sound. |
 
 Not used:
 

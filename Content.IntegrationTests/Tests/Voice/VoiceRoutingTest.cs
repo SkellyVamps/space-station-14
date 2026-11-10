@@ -22,7 +22,6 @@ using Content.Shared.Speech.EntitySystems;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
 using Content.Shared.VoiceMask;
-using Robust.Shared.Audio.Codecs;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
@@ -98,7 +97,7 @@ public sealed class VoiceRoutingTest : GameTest
 
     private IEntityManager Ent => Pair.Server.EntMan;
 
-    private byte[] _opusFrame = default!;
+    private byte[] _voiceFrame = default!;
 
     private async Task Setup(string mobProto = "MobHuman", int speakerX = 3)
     {
@@ -107,16 +106,15 @@ public sealed class VoiceRoutingTest : GameTest
         _grid = mapData.Grid;
 
         // A real encoded frame of a quiet tone.
-        var encoder = new OpusVoiceEncoder(VoiceConstants.SampleRate);
-        var pcm = new short[960];
+        var pcm = new short[ImaAdpcm.FrameSamples];
         for (var i = 0; i < pcm.Length; i++)
         {
-            pcm[i] = (short) (MathF.Sin(i * 0.05f) * 3000);
+            pcm[i] = (short) (MathF.Sin(i * 0.15f) * 3000);
         }
 
-        var buffer = new byte[400];
-        var length = encoder.Encode(pcm, buffer);
-        _opusFrame = buffer[..length];
+        var adpcm = new ImaAdpcm.State();
+        _voiceFrame = new byte[ImaAdpcm.FrameBytes];
+        ImaAdpcm.Encode(pcm, ref adpcm, _voiceFrame);
 
         _clientSession = Pair.Client.Session!;
         _dummy = await Pair.Server.AddDummySession();
@@ -169,7 +167,7 @@ public sealed class VoiceRoutingTest : GameTest
                 Device = device is { } d ? Ent.GetNetEntity(d) : NetEntity.Invalid,
                 // Counting up like a real client; random numbers occasionally land in the "too old" range.
                 Sequence = seq ?? _nextSequence++,
-                Payload = _opusFrame,
+                Payload = _voiceFrame,
             });
         });
 
@@ -814,46 +812,44 @@ public sealed class VoiceRoutingTest : GameTest
     [Test]
     public async Task MalformedAndAbusivePacketsAreRejected()
     {
-        // Scenario I, through the real client -> server network path.
+        // Scenario I. Audio only ever comes from players' voice pages / apps, through the server; this is the last
+        // line of defence in the routing itself.
         await Setup();
 
-        var stats = () => Ent.System<VoiceSystem>().Stats;
-        var net = Pair.Client.ResolveDependency<IClientNetManager>();
-        var start = stats();
+        var voice = Ent.System<VoiceSystem>();
+        var start = voice.Stats;
 
-        await Pair.Client.WaitPost(() =>
+        var badIndex = (byte[]) _voiceFrame.Clone();
+        badIndex[2] = 200;
+
+        await Pair.Server.WaitPost(() =>
         {
             // Oversized.
-            net.ClientSendMessage(new MsgVoiceTransmit { Sequence = 1, Payload = new byte[900] });
-            // Structurally invalid Opus (code 3 packet claiming 63 x 20 ms).
-            net.ClientSendMessage(new MsgVoiceTransmit { Sequence = 2, Payload = new byte[] { 0xFB, 0x3F, 0, 0 } });
+            voice.HandleTransmit(_dummy, new MsgVoiceTransmit { Sequence = 1, Payload = new byte[900] });
+            // Not a voice frame.
+            voice.HandleTransmit(_dummy, new MsgVoiceTransmit { Sequence = 2, Payload = badIndex });
             // Empty without end-of-spurt.
-            net.ClientSendMessage(new MsgVoiceTransmit { Sequence = 3, Payload = Array.Empty<byte>() });
+            voice.HandleTransmit(_dummy, new MsgVoiceTransmit { Sequence = 3, Payload = Array.Empty<byte>() });
             // Duplicate sequence.
-            net.ClientSendMessage(new MsgVoiceTransmit { Sequence = 10, Payload = _opusFrame });
-            net.ClientSendMessage(new MsgVoiceTransmit { Sequence = 10, Payload = _opusFrame });
+            voice.HandleTransmit(_dummy, new MsgVoiceTransmit { Sequence = 10, Payload = _voiceFrame });
+            voice.HandleTransmit(_dummy, new MsgVoiceTransmit { Sequence = 10, Payload = _voiceFrame });
         });
-        await RunTicksSync(10);
+        await RunTicksSync(2);
 
-        var afterBad = stats();
+        var afterBad = voice.Stats;
         Assert.That(afterBad.PacketsReceived - start.PacketsReceived, Is.EqualTo(5));
         Assert.That(afterBad.PacketsRejected - start.PacketsRejected, Is.EqualTo(4));
 
         // Flood: 5 seconds of audio in one go.
-        await Pair.Client.WaitPost(() =>
+        await Pair.Server.WaitPost(() =>
         {
             for (var i = 0; i < 250; i++)
             {
-                net.ClientSendMessage(new MsgVoiceTransmit { Sequence = (ushort) (100 + i), Payload = _opusFrame });
+                voice.HandleTransmit(_dummy, new MsgVoiceTransmit { Sequence = (ushort) (100 + i), Payload = _voiceFrame });
             }
         });
-        await RunTicksSync(10);
+        await RunTicksSync(2);
 
-        var afterFlood = stats();
-        Assert.That(afterFlood.PacketsRejected - afterBad.PacketsRejected, Is.GreaterThan(200), "flood is rate limited");
-
-        // And the client is still connected: abuse is dropped, not crashed on.
-        Assert.That(net.IsConnected);
-        Assert.That(Pair.Server.PlayerMan.Sessions.Any(s => s.UserId == _clientSession.UserId));
+        Assert.That(voice.Stats.PacketsRejected - afterBad.PacketsRejected, Is.GreaterThan(200), "flood is rate limited");
     }
 }

@@ -8,7 +8,7 @@ using Content.Shared.CCVar;
 using Content.Shared.Database;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Dsp;
-using Robust.Shared.Audio.Codecs;
+using Content.Shared.Voice.Codecs;
 using Robust.Shared.Configuration;
 using Robust.Shared.ContentPack;
 using Robust.Shared.Network;
@@ -25,7 +25,7 @@ namespace Content.Server.Voice.Transcription;
 /// </summary>
 /// <remarks>
 /// Speech is collected per player into "spurts" (from pressing talk to letting go, at most
-/// <see cref="MaxSeconds"/>), downsampled to 16 kHz and handed to a single background worker, so speech recognition
+/// <see cref="MaxSeconds"/>), and handed to a single background worker, so speech recognition
 /// never slows the game down. If it can't keep up, new spurts are skipped rather than falling ever further behind.
 /// </remarks>
 public sealed partial class VoiceTranscriptionSystem : EntitySystem
@@ -55,13 +55,12 @@ public sealed partial class VoiceTranscriptionSystem : EntitySystem
     /// </summary>
     private static readonly TimeSpan SilenceTimeout = TimeSpan.FromSeconds(1);
 
-    private const int Decimation = VoiceConstants.SampleRate / IVoiceTranscriber.SampleRate;
     private const int MaxSamples = (int) (MaxSeconds * IVoiceTranscriber.SampleRate);
 
     private readonly Dictionary<NetUserId, Spurt> _spurts = new();
     private readonly List<NetUserId> _stale = new();
     private readonly ConcurrentQueue<(Job Job, string Text)> _results = new();
-    private readonly short[] _decoded = new short[VoiceConstants.SamplesForMs(120)];
+    private readonly short[] _decoded = new short[ImaAdpcm.FrameSamples];
 
     private Channel<Job> _jobs = Channel.CreateUnbounded<Job>();
     private CancellationTokenSource _cancel = new();
@@ -156,23 +155,16 @@ public sealed partial class VoiceTranscriptionSystem : EntitySystem
 
     private void Append(NetUserId user, Spurt spurt, byte[] payload)
     {
-        spurt.Decoder ??= new OpusVoiceDecoder(VoiceConstants.SampleRate);
-        var count = spurt.Decoder.Decode(payload, _decoded);
-        if (count <= 0)
+        // Voice is already 16 kHz ADPCM, exactly what speech recognition wants.
+        if (!ImaAdpcm.Decode(payload, _decoded))
             return;
 
-        for (var i = 0; i < count; i++)
+        for (var i = 0; i < ImaAdpcm.FrameSamples; i++)
         {
-            // Low-pass below the new Nyquist frequency, then keep every third sample: 48 kHz -> 16 kHz.
-            var sample = spurt.AntiAlias2.ProcessSample(spurt.AntiAlias1.ProcessSample(_decoded[i] / 32768f));
-            if (++spurt.Phase < Decimation)
-                continue;
-
-            spurt.Phase = 0;
             if (spurt.Count == spurt.Samples.Length)
                 Array.Resize(ref spurt.Samples, Math.Min(spurt.Samples.Length * 2, MaxSamples));
 
-            spurt.Samples[spurt.Count++] = sample;
+            spurt.Samples[spurt.Count++] = _decoded[i] / 32768f;
 
             if (spurt.Count == MaxSamples)
                 Flush(user, spurt);
@@ -183,9 +175,6 @@ public sealed partial class VoiceTranscriptionSystem : EntitySystem
     {
         var count = spurt.Count;
         spurt.Count = 0;
-        spurt.Phase = 0;
-        spurt.AntiAlias1.Reset();
-        spurt.AntiAlias2.Reset();
 
         if (count < MinSeconds * IVoiceTranscriber.SampleRate || spurt.Speaker is not { } speaker)
             return;
@@ -319,11 +308,7 @@ public sealed partial class VoiceTranscriptionSystem : EntitySystem
     {
         // Grows as needed: most spurts are a few seconds.
         public float[] Samples = new float[IVoiceTranscriber.SampleRate * 4];
-        public readonly Biquad AntiAlias1 = new(BiquadType.LowPass, VoiceConstants.SampleRate, 7000f);
-        public readonly Biquad AntiAlias2 = new(BiquadType.LowPass, VoiceConstants.SampleRate, 7000f);
-        public OpusVoiceDecoder? Decoder;
         public int Count;
-        public int Phase;
         public string Route = string.Empty;
         public EntityUid? Speaker;
         public TimeSpan LastFrame;

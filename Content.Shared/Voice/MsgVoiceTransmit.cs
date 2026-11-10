@@ -27,10 +27,11 @@ public enum VoiceTransmitFlags : byte
 }
 
 /// <summary>
-/// Client to server: one encoded voice frame from the local player.
+/// One voice frame (a 16 kHz <see cref="Codecs.ImaAdpcm"/> frame) from a player, as the server's voice routing takes it.
+/// The server builds these itself from the player's voice webpage or app; it isn't sent over the network.
 /// </summary>
 /// <remarks>
-/// Deliberately does not contain a speaker entity: the server derives the speaker from the sending session.
+/// Deliberately does not contain a speaker entity: the speaker is always the player's own entity.
 /// </remarks>
 public sealed class MsgVoiceTransmit : NetMessage
 {
@@ -57,7 +58,7 @@ public sealed class MsgVoiceTransmit : NetMessage
     public NetEntity Device;
 
     /// <summary>
-    /// Opus payload. May be empty on an <see cref="VoiceTransmitFlags.EndOfSpurt"/> packet.
+    /// One 16 kHz ADPCM frame. May be empty on an <see cref="VoiceTransmitFlags.EndOfSpurt"/> packet.
     /// </summary>
     public byte[] Payload = Array.Empty<byte>();
 

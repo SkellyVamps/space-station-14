@@ -13,7 +13,8 @@ using Robust.Shared.Timing;
 namespace Content.Client.Options.UI.Tabs;
 
 /// <summary>
-/// Voice chat settings: microphone, push to talk / voice activation, volumes, and a microphone test.
+/// Voice chat settings: connecting the microphone (voice webpage or app), push to talk / voice activation, volumes,
+/// and hearing yourself.
 /// </summary>
 [GenerateTypedNameReferences]
 public sealed partial class VoiceTab : Control
@@ -25,7 +26,6 @@ public sealed partial class VoiceTab : Control
     [Dependency] private IPrototypeManager _proto = default!;
 
     private VoiceTransmitSystem? _transmit;
-    private VoiceCaptureSystem? _capture;
     private VoiceExternalSystem? _external;
 
     public VoiceTab()
@@ -34,7 +34,6 @@ public sealed partial class VoiceTab : Control
         IoCManager.InjectDependencies(this);
 
         _entMan.TrySystem(out _transmit);
-        _entMan.TrySystem(out _capture);
         _entMan.TrySystem(out _external);
 
         ExternalOpenButton.OnPressed += _ => _external?.OpenWebpage();
@@ -46,8 +45,6 @@ public sealed partial class VoiceTab : Control
         ExternalDisconnectButton.OnPressed += _ => _external?.Disconnect();
 
         Control.AddOptionCheckBox(CCVars.VoiceClientEnabled, EnabledCheckBox);
-        Control.AddOptionDropDown(CCVars.VoiceInputDevice, DropDownInputDevice, BuildDeviceOptions());
-        Control.AddOptionPercentSlider(CCVars.VoiceInputGain, SliderInputGain, 0f, 4f);
 
         Control.AddOptionDropDown(CCVars.VoiceInputMode, DropDownInputMode, new[]
         {
@@ -58,10 +55,6 @@ public sealed partial class VoiceTab : Control
         Control.AddOption(new OptionSliderFloatCVar(Control, _cfg, CCVars.VoiceActivationThreshold,
             SliderActivationThreshold, -70f, -10f, 1f, FormatDb));
         Control.AddOptionSlider(CCVars.VoiceActivationRelease, SliderActivationRelease, 100, 1500, FormatMs);
-        Control.AddOption(new OptionSliderFloatCVar(Control, _cfg, CCVars.VoiceNoiseGate,
-            SliderNoiseGate, -96f, -30f, 1f, (_, v) => v <= -95f ? Loc.GetString("ui-options-voice-off") : FormatDb(null!, v)));
-        Control.AddOption(new OptionSliderFloatCVar(Control, _cfg, CCVars.VoiceNoiseSuppression,
-            SliderNoiseSuppression, 0f, 1f, 0.05f, FormatOffPercent));
 
         var channels = BuildRadioChannelOptions();
         Control.AddOptionDropDown(CCVars.VoiceRadioKey2Channel, DropDownRadioKey2, channels);
@@ -126,40 +119,16 @@ public sealed partial class VoiceTab : Control
         return options;
     }
 
-    private List<OptionDropDownCVar<string>.ValueOption> BuildDeviceOptions()
-    {
-        var options = new List<OptionDropDownCVar<string>.ValueOption>
-        {
-            new(string.Empty, Loc.GetString("ui-options-voice-input-device-default")),
-        };
-
-        if (_capture == null)
-            return options;
-
-        foreach (var device in _capture.GetDevices())
-        {
-            options.Add(new OptionDropDownCVar<string>.ValueOption(device, device));
-        }
-
-        // Keep a configured but currently unplugged device selectable instead of silently resetting it.
-        var configured = _cfg.GetCVar(CCVars.VoiceInputDevice);
-        if (!string.IsNullOrEmpty(configured) && options.TrueForAll(o => o.Key != configured))
-            options.Add(new OptionDropDownCVar<string>.ValueOption(configured,
-                Loc.GetString("ui-options-voice-input-device-missing", ("device", configured))));
-
-        return options;
-    }
-
     protected override void FrameUpdate(FrameEventArgs args)
     {
         base.FrameUpdate(args);
 
-        if (!VisibleInTree || _transmit == null || _capture == null)
+        if (!VisibleInTree || _transmit == null || _external == null)
             return;
 
-        var level = _transmit.InputLevelDb;
-        LevelMeter.Value = Math.Clamp(level, -80f, 0f);
-        LevelLabel.Text = level <= -79f ? "-" : $"{level:0} dB";
+        // How loud the server is getting you, while you talk or test.
+        LevelMeter.Value = _external.Talking ? _external.Level : 0f;
+        MicTestButton.Disabled = !_external.Connected && !MicTestButton.Pressed;
 
         StatusLabel.Text = GetStatus();
 
@@ -179,9 +148,16 @@ public sealed partial class VoiceTab : Control
 
     private void UpdateExternal()
     {
-        ExternalSection.Visible = _external is { Available: true };
         if (_external is not { Available: true })
+        {
+            ExternalStatus.Text = Loc.GetString("ui-options-voice-external-status-not-in-game");
+            ExternalOpenButton.Visible = false;
+            ExternalCopyButton.Visible = false;
+            ExternalDisconnectButton.Visible = false;
             return;
+        }
+
+        ExternalCopyButton.Visible = true;
 
         ExternalStatus.Text = !_external.Connected
             ? Loc.GetString("ui-options-voice-external-status-off")
@@ -200,14 +176,12 @@ public sealed partial class VoiceTab : Control
         if (_transmit!.AdminMuted)
             return Loc.GetString("ui-options-voice-status-admin-muted");
 
-        return _capture!.Status switch
-        {
-            VoiceCaptureStatus.Unsupported => Loc.GetString("ui-options-voice-status-unsupported"),
-            VoiceCaptureStatus.Unavailable => Loc.GetString("ui-options-voice-status-unavailable"),
-            VoiceCaptureStatus.Disconnected => Loc.GetString("ui-options-voice-status-disconnected"),
-            VoiceCaptureStatus.Capturing => Loc.GetString("ui-options-voice-status-capturing", ("device", _capture.DeviceName ?? "")),
-            _ => Loc.GetString("ui-options-voice-status-idle"),
-        };
+        if (_external is not { Connected: true })
+            return Loc.GetString("ui-options-voice-status-no-microphone");
+
+        return Loc.GetString("ui-options-voice-status-capturing", ("device", Loc.GetString(_external.Kind == "app"
+            ? "ui-options-voice-device-app"
+            : "ui-options-voice-device-web")));
     }
 
     protected override void ExitedTree()

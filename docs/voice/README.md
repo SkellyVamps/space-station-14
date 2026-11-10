@@ -1,6 +1,6 @@
 # Proximity voice chat
 
-Server-distributed, deeply integrated voice chat for Space Station 14: push to talk (or voice activation), Opus,
+Server-distributed, deeply integrated voice chat for Space Station 14: push to talk (or voice activation),
 positional playback that follows the speaker, acoustics that respect walls, doors, windows, vacuum and lockers,
 radio over headsets, per-character procedural voices, species colouring, masks/helmets, disguises and voice
 impersonation, per-player muting, admin moderation.
@@ -8,34 +8,32 @@ impersonation, per-player muting, admin moderation.
 | Document | For |
 |---|---|
 | [players.md](players.md) | Players: setup, push to talk, muting, troubleshooting |
-| [server-owners.md](server-owners.md) | Server owners: enabling, configuration, moderation, **client distribution** |
+| [server-owners.md](server-owners.md) | Server owners: enabling, the voice page and app, configuration, moderation |
 | [developer.md](developer.md) | Developers: architecture, packet flow, DSP, acoustics, extending it |
 | [THIRD-PARTY.md](THIRD-PARTY.md) | Third-party libraries and licences |
 
-## Read this first: distribution
+## Read this first: how it fits together
 
-Voice chat needs three engine primitives upstream RobustToolbox doesn't have (microphone capture, streaming audio, Opus),
-so this fork runs on its own engine fork, [SkellyVamps/RobustToolbox](https://github.com/SkellyVamps/RobustToolbox)
-(`voice-chat-engine` branch, versions like `293.0.1.1`), and players use the fork launcher
-[SkellyVamps/SS14.Launcher](https://github.com/SkellyVamps/SS14.Launcher) (`voice-chat` branch), which downloads those
-engine builds automatically and still plays every official server.
+It runs on the **official engine and launcher**: players join from the official SS14 launcher like any other server,
+and everything voice related comes from this server's game code.
 
-Players install that launcher once; after that, joining the server downloads everything else automatically.
-Players using the official launcher can't join a voice server (it doesn't know the fork engine version).
+The official engine can't record microphones, so players' microphones are the server's **voice webpage** (opened from
+Options -> Voice, nothing to install) or the **Echoes Voice app** (a small optional download). Either one sends the
+microphone to the game server; the game itself decides when you're heard (your push to talk keys), gives you your
+character's voice, and plays everyone else's voice in game, positioned in the world.
 
-One-time setup and the release procedure are in [server-owners.md](server-owners.md#client-distribution).
+The voice page is served by the game server itself on its web port; for players on other computers it needs an https
+address (a Cloudflare Tunnel or reverse proxy). See [server-owners.md](server-owners.md#voice-webpage-and-app).
 
 ## Status
 
 Implemented and tested:
 
-- [x] Engine fork with signed build publishing; launcher fork that trusts it alongside official builds
-- [x] Engine: microphone capture with device enumeration and disconnect detection; streaming PCM audio sources;
-      Opus encoder/decoder (Concentus, managed) with packet inspection
-- [x] Push to talk (local + radio keys, rebindable), voice activation with threshold/hold, noise gate
-- [x] Opus at 48 kHz mono, 20 ms frames (server configurable), in-band FEC
-- [x] Client -> server -> client transport; server never decodes audio
-- [x] Adaptive jitter buffer, FEC recovery and packet loss concealment
+- [x] Official engine and launcher: no forks
+- [x] Microphone from the server's voice webpage or the Echoes Voice app (Windows, macOS, Linux)
+- [x] Push to talk (local + radio keys, rebindable), voice activation with threshold/hold
+- [x] 16 kHz IMA ADPCM, 20 ms frames; voice effects applied on the server
+- [x] Adaptive jitter buffer, packet loss concealment, seamless playback as crossfaded clips
 - [x] Positional playback attached to the speaking entity
 - [x] Acoustic propagation: walls, doors (open/closed, per door type), windows, directional windows, blast doors,
       vacuum/low pressure, space gaps, containers (lockers, crates, disposals, cryo, body bags, mechs), cross-grid gaps
@@ -47,20 +45,18 @@ Implemented and tested:
 - [x] Species voice layers, masks, helmets, hardsuit speakers, muzzles, borg voice box, all via prototypes
 - [x] Voice-changing disguise (stable per item) and character-voice impersonation (record, then use)
 - [x] Per-player mute/volume (by account, enforced server side), admin voice mute (timed), admin logs, `voicestats`
-- [x] Options tab: device, gain, level meter, mic test, mode, thresholds, volumes, network buffer, indicators
+- [x] Options tab: microphone link, level meter, hearing yourself, mode, thresholds, volumes, network buffer, indicators
 - [x] Speaking indicators and on-screen radio speaker list
-- [x] Packet validation: size, Opus structure, audio-time rate limiting, packet flood limiting, duplicate/replay
+- [x] Packet validation: size, frame structure, audio-time rate limiting, packet flood limiting, duplicate/replay
       window, muted users, maximum streams per listener
-- [x] Unit tests (DSP, acoustics, rate limiting, jitter buffer, codec) and integration tests for scenarios A-I
+- [x] Unit tests (DSP, acoustics, rate limiting, jitter buffer, codec, seamless clip playback) and integration tests
 
 Not yet done / known limitations:
 
-- [ ] One-time release setup (signing key, first engine and launcher releases) needs doing; see server-owners.md.
-- [ ] Intercoms and handheld radio speakers don't play voice positionally yet (headsets and intrinsic radios do).
 - [ ] Voice between grids only crosses short gaps (docking airlocks); no full multi-grid acoustic graph.
 - [ ] Personal mutes are kept in server memory (survive reconnects, not restarts) and admin voice mutes are not yet
       stored in the database.
 - [ ] Cloning/body swaps keep the new body's voice; `VoiceProfileSystem.SetCharacterVoice` exists for hooking them up.
-- [ ] Capture runs on the game thread at frame rate; at very low FPS latency rises (no audio is lost).
-- [ ] Not tested on real audio hardware in this environment (headless CI). The OpenAL capture path is standard ALC
-      capture, but needs a manual test on Windows/macOS/Linux with real microphones before release.
+- [ ] Playback below about 20 FPS can have small gaps (clips are started from the game's frames).
+- [ ] Not tested with real microphones and speakers in this environment (headless CI); needs a listen on real
+      hardware before release.

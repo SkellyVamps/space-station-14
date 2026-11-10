@@ -303,6 +303,11 @@ public sealed partial class HumanoidProfileEditor
 
     private void StartCharacterVoicePreview()
     {
+        // The microphone is the voice webpage or app: open the page if neither is connected yet.
+        var external = _entManager.System<VoiceExternalSystem>();
+        if (!external.Connected && external.Available)
+            external.OpenWebpage();
+
         var (profile, filters) = GetPreviewVoice();
         _entManager.System<VoiceTransmitSystem>().StartTest(profile, filters);
         _voicePreviewing = true;

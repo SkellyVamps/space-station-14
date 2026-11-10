@@ -6,50 +6,58 @@ The system is split into layers that only talk to their neighbours, so each can 
 
 | Layer | Responsibility | Where |
 |---|---|---|
-| CAPTURE | Microphone devices, opening/closing, reading PCM | engine `IRealtimeAudioManager`, `IAudioCaptureDevice`; `Content.Client/Voice/VoiceCaptureSystem.cs` |
-| PROCESSING | Preprocessing (gain, rumble filter, noise gate) and the gameplay effect chain | `Content.Shared/Voice/Dsp`, `Effects`, `VoiceChainBuilder`; `VoiceTransmitSystem` |
-| ENCODING | Opus encode/decode | engine `Robust.Shared.Audio.Codecs` |
-| TRANSPORT | Wire messages | `MsgVoiceTransmit`, `MsgVoiceReceive`, `VoiceNetManager` |
+| CAPTURE | The microphone: the voice webpage or the Echoes Voice app, over a WebSocket on the status port | `Content.Server/Voice/External/` (`Web/`, `VoiceWebManager`), `EchoesVoice/` |
+| KEYS | Push to talk, radio keys, intercoms, range, mute: what the game says about when you're heard | `VoiceTransmitSystem`, `VoiceExternalSystem` (client) |
+| PROCESSING | The gameplay effect chain, applied on the server | `Content.Shared/Voice/Dsp`, `Effects`, `VoiceChainBuilder`; `VoiceExternalMicSystem` |
+| ENCODING | 16 kHz IMA ADPCM, 20 ms frames | `Content.Shared/Voice/Codecs/ImaAdpcm.cs` (also used by the app; mirrored in `voice-worklet.js`) |
+| TRANSPORT | Wire messages | `MsgVoiceReceive`, `VoiceNetManager` |
 | ROUTING | Validation, rate limiting, who receives a frame | `Content.Server/Voice/VoiceSystem.cs`, `VoiceRateLimiter.cs` |
 | AUDIBILITY | Distance, walls, doors, vacuum, containers, hearing | `Content.Server/Voice/VoiceAudibilitySystem.cs`, `Acoustics/` |
 | RADIO | Channels, transmitters, receivers | `Content.Server/Voice/VoiceRadioSystem.cs` |
 | GAMEPLAY | Character/species/equipment/disguise/impersonation -> speaker state | `VoiceProfileSystem`, `VoiceModifierSystem`, `VoiceImpersonationSystem` |
-| PLAYBACK | Jitter buffer, decode, receive DSP, positional sources | `Content.Client/Voice/VoicePlaybackSystem.cs`, `VoiceJitterBuffer.cs` |
+| PLAYBACK | Jitter buffer, decode, receive DSP, crossfaded clips | `Content.Client/Voice/VoicePlaybackSystem.cs`, `VoiceStream.cs`, `VoiceJitterBuffer.cs` |
 | MODERATION | Admin mutes, personal mute/volume, logs | `VoiceModerationSystem`, `Commands/` |
 | UI | Options tab, character editor, level meters, voice panel (speaker cards, range and mute buttons) | `Content.Client/Options/UI/Tabs/VoiceTab.*`, `Lobby/UI/HumanoidProfileEditor.CharacterVoice.cs`, `VoiceIndicator*`, `VoiceRadioPanel.cs` |
 
 ## Packet flow
 
 ```
- microphone
-   │  IAudioCaptureDevice.ReadSamples (16-bit mono, 48 kHz)
- VoiceTransmitSystem (client, every frame)
-   │  gain -> 80 Hz high-pass -> level meter / voice activation -> noise gate
-   │  VoiceSpeakerComponent.Profile + Filters  (server-authoritative, sent only to the owner)
-   │  limiter -> Opus (20 ms, VOIP, FEC)
+ microphone (browser getUserMedia + AudioWorklet, or the app's OpenAL capture)
+   │  16 kHz mono -> IMA ADPCM, 20 ms
    ▼
- MsgVoiceTransmit { flags, sequence, radio channel?, opus }      no speaker id: the server knows who sent it
+ WebSocket /voice/ws on the status port: hello {code}, then [0x01, seq, frame]
    ▼
- VoiceSystem (server)
-   │  validate: size, Opus TOC structure, audio-time + packet rate limits, duplicate window, admin mute, CanSpeak
+ VoiceExternalMicSystem (server)
+   │  gate with the player's key state (VoiceExternalKeyEvent from their game client)
+   │  -> 48 kHz -> VoiceSpeakerComponent.Profile + Filters -> limiter -> back to 16 kHz ADPCM
+   ▼
+ VoiceSystem.HandleTransmit (server)
+   │  validate: size, frame structure, admin mute, CanSpeak
    │  local recipients: cached list from VoiceAudibilitySystem, refreshed every voice.audibility_interval
    │  radio recipients: VoiceRadioSystem (same rules as text radio), cached per channel
-   │  per listener: personal mute/volume
+   │  per listener: personal mute/volume; a copy goes to voice-to-text
    ▼
- MsgVoiceReceive { mode, stream id, sequence, gain, muffle, speaker (local) | channel + name (radio), opus }
+ MsgVoiceReceive { mode, stream id, sequence, gain, muffle, speaker (local) | channel + name (radio), frame }
    ▼
- VoicePlaybackSystem (client)
-   │  per stream: VoiceJitterBuffer -> OpusVoiceDecoder (FEC / concealment)
+ VoiceStream (client)
+   │  VoiceJitterBuffer -> ADPCM decode (concealment for lost frames) -> 48 kHz
    │  muffle low-pass (from server) -> radio or ghost filter -> gain ramp
    ▼
- IStreamingAudioSource at the speaker's position (OpenAL pans; distance falloff already applied by the server)
+ crossfaded clips (IAudioManager.LoadAudioRaw + CreateAudioSource) at the speaker's position
 ```
 
-Effects that depend on the speaker (character, species, masks, disguises) are applied **once, before encoding**,
-on the speaker's client: one encode per speaker regardless of the number of listeners, no extra bandwidth.
-Effects that depend on the listener (distance, walls, being in a locker, radio coloration, ghost reverb) are applied
-**after decoding** on each listener's client, driven by two bytes (gain, muffle) the server adds per recipient.
-The server never decodes or re-encodes audio.
+Effects that depend on the speaker (character, species, masks, disguises) are applied **once, on the server**, before
+the frame is routed: one pass per speaker regardless of the number of listeners. Effects that depend on the listener
+(distance, walls, being in a locker, radio coloration, ghost reverb) are applied on each listener's client, driven by
+two bytes (gain, muffle) the server adds per recipient.
+
+### Playback without a streaming source
+
+The official engine plays whole sounds, so `VoiceStream` plays voice as 40 ms clips, each with 30 ms more audio that
+crossfades into the next one. The next clip is timed from the previous one's real playback position (the audio device
+clock), started up to a frame early with silence in front so it lines up exactly, or that far in if a frame comes late.
+Playback waits for about 120 ms of audio before starting a sentence. `VoiceStreamTest` rebuilds the heard signal from
+the clips under uneven frame timing and network jitter and checks it's seamless.
 
 ### Trust model
 
@@ -58,26 +66,15 @@ The server never decodes or re-encodes audio.
 * Radio packets carry a per-speaker-per-channel random stream id, never the speaking entity, so radio voices can't be
   linked to bodies by a modified client.
 * Personal mutes are stored by account on the server; clients never learn which account is behind an entity.
-* The speaker's own client applies its gameplay effects. A modified client could skip them or send arbitrary audio.
-  Nothing can cryptographically prove audio came unmodified from a microphone; the server only enforces what it can
-  (who, where, how much, to whom).
+* Gameplay effects are applied by the server, so a modified client can't skip its character's voice. Nothing can
+  prove audio came unmodified from a microphone; the server enforces who, where, when, how much, and to whom.
+* Game clients never send audio; only a page or app holding the player's link code can, and only while that player's
+  talk keys are held.
 
-## Engine modifications
+## Engine
 
-All additive, in new files where possible, on the `voice-chat-engine` branch of
-[SkellyVamps/RobustToolbox](https://github.com/SkellyVamps/RobustToolbox) (this repo's `RobustToolbox` submodule):
-
-* `Robust.Client/Audio/Realtime/IRealtimeAudioManager.cs` (+ `AudioManager.Realtime.cs`, headless stub, IoC
-  registration): `GetCaptureDevices`, `OpenCaptureDevice`, `CreateStreamingSource`.
-* `IAudioCaptureDevice` / `AudioCaptureDevice`: ALC capture, `Connected` via `ALC_EXT_disconnect`.
-* `IStreamingAudioSource` / `StreamingAudioSource`: a pool of AL buffers, `QueueSamples`, auto restart after underrun.
-* `Robust.Shared/Audio/Codecs`: `OpusVoiceEncoder`, `OpusVoiceDecoder` (never throw on bad data), `OpusPacket`
-  (structural validation without decoding). Backed by Concentus, `PrivateAssets=compile` so content can't depend on it
-  directly.
-* Engine tests: `Robust.Shared.Tests/Audio/OpusVoiceCodecTest.cs`.
-
-Fork-only engine changes besides voice: the 4-part version (`293.0.1.1`), `build.engine_version` keeping the 4th
-component, and `publish-fork-build.yml` / `Tools/sign_engine_build.py` for signed releases.
+None: it runs on official RobustToolbox. Content uses only public engine APIs (`IAudioManager.LoadAudioRaw`,
+`CreateAudioSource`, `IAudioSource.PlaybackPosition`, `IStatusHost` handlers and WebSockets).
 
 ## Components and prototypes
 
@@ -207,10 +204,9 @@ hear muffled (configurable); sleepers hear muffled.
 
 * Unit (`dotnet test Content.Tests --filter "FullyQualifiedName~Voice"`): DSP correctness and stability, pitch shift
   accuracy, profile clamping/composition, acoustic scenarios on synthetic maps, rate limiter, replay window, jitter
-  buffer under simulated loss/jitter.
+  buffer under simulated loss/jitter, the ADPCM codec matching the webpage's, seamless clip playback.
 * Integration (`dotnet test Content.IntegrationTests --filter "FullyQualifiedName~Tests.Voice"`): real grids with
   walls/airlocks/lockers/atmosphere, and end-to-end routing to a real client (scenarios A-I).
-* Engine (`dotnet test RobustToolbox/Robust.Shared.Tests --filter OpusVoiceCodecTest`).
 * Benchmarks: `dotnet run -c Release --project Content.Benchmarks -- --filter '*VoiceBenchmark*'`.
 
 Manual multi-client testing: `runserver`, then two `runclient` instances (`--username a`, `--username b`). Mic test
@@ -243,9 +239,9 @@ the intercom with it as the radio source. `Device` and `Radio` together are reje
 
 ## Client audio processing
 
-Microphone chain (`VoiceTransmitSystem.ProcessFrame`): input gain, 80 Hz high-pass, `NoiseSuppressor`
-(`voice.noise_suppression`, spectral subtraction with a tracked per-bin noise floor, 10.7 ms latency), level
-meter / voice activation, noise gate, the gameplay chain, limiter, Opus.
+The browser does its own echo cancellation, noise suppression and gain control; the app runs the shared
+`NoiseSuppressor` (spectral subtraction with a tracked per-bin noise floor) and a volume control. The server runs
+the gameplay chain and a limiter (`VoiceExternalMicSystem`).
 
 `VoiceDuckingSystem` lowers other game sounds while voice is audible (`voice.ducking`): it runs after the engine's
 `AudioSystem` and offsets every playing `AudioComponent`'s volume; the engine restores them on its next update.
@@ -304,7 +300,7 @@ server sends `welcome`, `state` (`talking`, `name`, `adminMuted`) and `pong`, an
 (replaced / switched back), 4003 (left the game), 4004 (shutdown) or 4005 (disabled), with a reason to show.
 
 `VoiceExternalMicSystem` (server) drains frames on the main thread, gates them with the key state the game client
-reports (`VoiceExternalKeyEvent`), upsamples to 48 kHz, runs the speaker's voice chain, Opus-encodes and calls
+reports (`VoiceExternalKeyEvent`), upsamples to 48 kHz, runs the speaker's voice chain, re-encodes to ADPCM and calls
 `VoiceSystem.HandleTransmit(..., fromServer: true)`. `VoiceExternalSystem` (client) gets the link and sends key
 state; `VoiceTransmitSystem` stops using the local microphone while connected. `ImaAdpcm` is mirrored by
 `voice-worklet.js`; `ImaAdpcmTest` checks both produce identical bytes.

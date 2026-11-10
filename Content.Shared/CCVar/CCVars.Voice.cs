@@ -15,30 +15,12 @@ public sealed partial class CCVars
     public static readonly CVarDef<bool> VoiceEnabled =
         CVarDef.Create("voice.enabled", true, CVar.SERVER | CVar.REPLICATED);
 
-    /// <summary>
-    ///     Target Opus bitrate (bits per second) clients should encode voice at.
-    /// </summary>
-    public static readonly CVarDef<int> VoiceBitrate =
-        CVarDef.Create("voice.bitrate", 24000, CVar.SERVER | CVar.REPLICATED);
-
-    /// <summary>
-    ///     Duration of a single voice frame in milliseconds. Must be 10, 20, 40 or 60.
-    /// </summary>
-    public static readonly CVarDef<int> VoiceFrameMs =
-        CVarDef.Create("voice.frame_ms", 20, CVar.SERVER | CVar.REPLICATED);
-
-    /// <summary>
-    ///     Packet loss percentage clients tell their encoder to expect. Higher values add more forward error correction.
-    /// </summary>
-    public static readonly CVarDef<int> VoiceExpectedLoss =
-        CVarDef.Create("voice.expected_loss", 10, CVar.SERVER | CVar.REPLICATED);
-
     /*
      * Server: anti-abuse
      */
 
     /// <summary>
-    ///     Largest Opus payload, in bytes, the server accepts from a client.
+    ///     Largest voice payload, in bytes, the server routes.
     /// </summary>
     public static readonly CVarDef<int> VoiceMaxPacketBytes =
         CVarDef.Create("voice.max_packet_bytes", 400, CVar.SERVER);
@@ -343,18 +325,6 @@ public sealed partial class CCVars
         CVarDef.Create("voice.client_enabled", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
-    ///     Name of the microphone to use. Empty for the system default.
-    /// </summary>
-    public static readonly CVarDef<string> VoiceInputDevice =
-        CVarDef.Create("voice.input_device", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>
-    ///     Linear gain applied to the microphone.
-    /// </summary>
-    public static readonly CVarDef<float> VoiceInputGain =
-        CVarDef.Create("voice.input_gain", 1f, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>
     ///     Volume of local (proximity) voice.
     /// </summary>
     public static readonly CVarDef<float> VoiceOutputVolume =
@@ -383,18 +353,6 @@ public sealed partial class CCVars
     /// </summary>
     public static readonly CVarDef<int> VoiceActivationRelease =
         CVarDef.Create("voice.activation_release_ms", 400, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>
-    ///     Noise gate threshold in dBFS applied to the microphone while transmitting. Very low values disable it.
-    /// </summary>
-    public static readonly CVarDef<float> VoiceNoiseGate =
-        CVarDef.Create("voice.noise_gate_db", -60f, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>
-    ///     How strongly steady background noise (fans, hum, hiss) is removed from the microphone. 0 = off, 1 = strongest.
-    /// </summary>
-    public static readonly CVarDef<float> VoiceNoiseSuppression =
-        CVarDef.Create("voice.noise_suppression", 0f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
     ///     How much quieter other game sounds get while someone is heard talking. 0 = off, 0.9 = almost silent.

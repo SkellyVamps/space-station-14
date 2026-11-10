@@ -13,7 +13,7 @@ using Content.Shared.Radio.Components;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Components;
 using Robust.Server.Player;
-using Robust.Shared.Audio.Codecs;
+using Content.Shared.Voice.Codecs;
 using Robust.Shared.Configuration;
 using Robust.Shared.Enums;
 using Robust.Shared.Map;
@@ -30,9 +30,10 @@ namespace Content.Server.Voice;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Receives encoded voice frames from clients, validates them, works out who may hear them and forwards the untouched
-/// Opus payload with per-recipient gain and muffling. The server never re-encodes audio; it only decodes a copy for
-/// voice-to-text (<see cref="Transcription.VoiceTranscriptionSystem"/>).
+/// Receives voice frames (16 kHz <see cref="ImaAdpcm"/>) from players' voice webpages and apps, by way of
+/// <see cref="External.VoiceExternalMicSystem"/>, validates them, works out who may hear them and forwards them with
+/// per-recipient gain and muffling. A copy is decoded for voice-to-text
+/// (<see cref="Transcription.VoiceTranscriptionSystem"/>). Game clients never send audio themselves.
 /// </para>
 /// <para>
 /// The speaker is always the entity attached to the sending session; clients cannot claim to be someone else.
@@ -144,7 +145,6 @@ public sealed partial class VoiceSystem : EntitySystem
         _ghostQuery = GetEntityQuery<GhostComponent>();
         _ghostHearingQuery = GetEntityQuery<GhostHearingComponent>();
 
-        _voiceNet.TransmitReceived += OnTransmit;
         SubscribeNetworkEvent<VoiceSetRadioMutedChannelsEvent>(OnSetRadioMuted);
         SubscribeNetworkEvent<VoiceSetRangeEvent>(OnSetRange);
 
@@ -173,7 +173,6 @@ public sealed partial class VoiceSystem : EntitySystem
     {
         base.Shutdown();
         _players.PlayerStatusChanged -= OnPlayerStatusChanged;
-        _voiceNet.TransmitReceived -= OnTransmit;
     }
 
     private void OnPlayerStatusChanged(object? sender, SessionStatusEventArgs e)
@@ -258,12 +257,6 @@ public sealed partial class VoiceSystem : EntitySystem
     }
 
     #region Receiving
-
-    private void OnTransmit(MsgVoiceTransmit msg)
-    {
-        if (_players.TryGetSessionByChannel(msg.MsgChannel, out var session))
-            HandleTransmit(session, msg);
-    }
 
     /// <summary>
     /// Processes a voice frame sent by <paramref name="session"/>. The speaker is always the session's attached
@@ -447,14 +440,13 @@ public sealed partial class VoiceSystem : EntitySystem
         }
         else
         {
-            var samples = OpusPacket.GetSampleCount(payload, VoiceConstants.SampleRate);
-            if (samples <= 0 || samples > VoiceConstants.SamplesForMs(60))
+            if (!ImaAdpcm.IsValid(payload))
             {
-                reason = "malformed opus packet";
+                reason = "malformed voice frame";
                 return false;
             }
 
-            audioMs = samples / (VoiceConstants.SampleRate / 1000);
+            audioMs = ImaAdpcm.FrameSamples * 1000 / ImaAdpcm.SampleRate;
         }
 
         if (msg.RadioChannel != null && (msg.Flags & VoiceTransmitFlags.Radio) == 0)
@@ -865,6 +857,31 @@ public sealed partial class VoiceSystem : EntitySystem
 
         route.NameSent[listener] = now;
         return route.Name;
+    }
+
+    /// <summary>
+    /// Stream id kept for <see cref="SendLoopback"/>: never handed out by <see cref="AllocateStreamId"/>.
+    /// </summary>
+    public const ushort LoopbackStreamId = ushort.MaxValue;
+
+    /// <summary>
+    /// Plays a voice frame back to <paramref name="session"/> only: hearing yourself (mic test, character preview).
+    /// </summary>
+    public void SendLoopback(ICommonSession session, byte[] payload, ushort sequence, bool endOfSpurt)
+    {
+        var message = new MsgVoiceReceive
+        {
+            Mode = VoiceReceiveMode.Local,
+            Flags = endOfSpurt ? VoiceReceiveFlags.EndOfSpurt : VoiceReceiveFlags.None,
+            StreamId = LoopbackStreamId,
+            Sequence = sequence,
+            // Not positioned: it plays "in your head".
+            Speaker = NetEntity.Invalid,
+            Gain = 255,
+            Payload = payload,
+        };
+
+        TrySend(message, session);
     }
 
     private bool TrySend(MsgVoiceReceive message, ICommonSession session)

@@ -9,7 +9,7 @@
                        Margin="0 0 0 6" Visible="False" />
                 <CheckBox Name="EnabledCheckBox" Text="{Loc 'ui-options-voice-enabled'}" />
 
-                <BoxContainer Name="ExternalSection" Orientation="Vertical" Visible="False">
+                <BoxContainer Name="ExternalSection" Orientation="Vertical">
                     <Label Text="{Loc 'ui-options-voice-external-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
                     <Label Name="ExternalStatus" StyleClasses="LabelSubText" />
                     <BoxContainer Orientation="Horizontal" Margin="0 4 0 0">
@@ -22,14 +22,10 @@
                     </BoxContainer>
                 </BoxContainer>
 
-                <Label Text="{Loc 'ui-options-voice-input-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
-                <ui:OptionDropDown Name="DropDownInputDevice" Title="{Loc 'ui-options-voice-input-device'}" />
-                <ui:OptionSlider Name="SliderInputGain" Title="{Loc 'ui-options-voice-input-gain'}" />
-                <BoxContainer Orientation="Horizontal" Margin="0 4 0 4">
+                <BoxContainer Orientation="Horizontal" Margin="0 6 0 4">
                     <Label Text="{Loc 'ui-options-voice-level'}" MinWidth="160" />
-                    <ProgressBar Name="LevelMeter" MinValue="-80" MaxValue="0" Value="-80"
+                    <ProgressBar Name="LevelMeter" MinValue="0" MaxValue="1" Value="0"
                                  HorizontalExpand="True" MinHeight="14" />
-                    <Label Name="LevelLabel" MinWidth="70" Align="Right" />
                 </BoxContainer>
                 <Button Name="MicTestButton" ToggleMode="True" Text="{Loc 'ui-options-voice-mic-test'}"
                         ToolTip="{Loc 'ui-options-voice-mic-test-tooltip'}" HorizontalAlignment="Left" />
@@ -39,9 +35,6 @@
                 <Label Name="PushToTalkHint" StyleClasses="LabelSubText" />
                 <ui:OptionSlider Name="SliderActivationThreshold" Title="{Loc 'ui-options-voice-activation-threshold'}" />
                 <ui:OptionSlider Name="SliderActivationRelease" Title="{Loc 'ui-options-voice-activation-release'}" />
-                <ui:OptionSlider Name="SliderNoiseGate" Title="{Loc 'ui-options-voice-noise-gate'}" />
-                <ui:OptionSlider Name="SliderNoiseSuppression" Title="{Loc 'ui-options-voice-noise-suppression'}" />
-                <Label Text="{Loc 'ui-options-voice-noise-suppression-hint'}" StyleClasses="LabelSubText" />
 
                 <Label Text="{Loc 'ui-options-voice-radio-keys-header'}" StyleClasses="LabelKeyText" Margin="0 10 0 0" />
                 <Label Text="{Loc 'ui-options-voice-radio-keys-hint'}" StyleClasses="LabelSubText" />

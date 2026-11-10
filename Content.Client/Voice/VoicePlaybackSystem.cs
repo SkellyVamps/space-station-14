@@ -2,10 +2,8 @@ using System.Numerics;
 using Content.Shared.CCVar;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Dsp;
-using Robust.Client.Audio.Realtime;
+using Robust.Client.Audio;
 using Robust.Client.Graphics;
-using Robust.Shared.Audio.Codecs;
-using Robust.Shared.Audio.Sources;
 using Robust.Shared.Configuration;
 using Robust.Shared.Network;
 using Robust.Shared.Prototypes;
@@ -17,8 +15,8 @@ namespace Content.Client.Voice;
 /// PLAYBACK layer: turns voice packets from the server into sound.
 /// </summary>
 /// <remarks>
-/// Each stream (a speaker heard locally, or a speaker heard on one radio channel) gets its own jitter buffer, Opus
-/// decoder, receive-side DSP and streaming audio source. Local streams are positioned at the speaking entity so they
+/// Each stream (a speaker heard locally, or a speaker heard on one radio channel) gets its own jitter buffer, decoder,
+/// receive-side DSP and playback (<see cref="VoiceStream"/>). Local streams are positioned at the speaking entity so they
 /// move with it; radio streams are non-positional and go through the radio effect chain.
 /// The server already decided gain and muffling (walls, doors, distance...); this just renders it smoothly.
 /// </remarks>
@@ -26,7 +24,9 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
 {
     [Dependency] private IClientNetManager _net = default!;
     [Dependency] private VoiceNetManager _voiceNet = default!;
-    [Dependency] private IRealtimeAudioManager _realtime = default!;
+    [Dependency] private IAudioManager _audio = default!;
+
+    private EngineVoiceClipPlayer? _clipPlayer;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IPrototypeManager _proto = default!;
@@ -253,19 +253,8 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
 
     private VoiceStream? CreateStream(MsgVoiceReceive msg)
     {
-        var source = _realtime.CreateStreamingSource(VoiceConstants.SampleRate, 32);
-        if (source == null)
-            return null;
-
-        // The server already applied distance falloff; OpenAL only pans.
-        source.RolloffFactor = 0f;
-        source.ReferenceDistance = 1f;
-        source.MaxDistance = 1000f;
-        source.Occlusion = 0f;
-        source.Global = msg.Mode == VoiceReceiveMode.Radio;
-
-        var frameMs = _cfg.GetCVar(CCVars.VoiceFrameMs);
-        var depth = Math.Max(1, (int) MathF.Ceiling(_jitterMs / (float) Math.Max(10, frameMs)));
+        // Voice frames are always 20 ms.
+        var depth = Math.Max(1, (int) MathF.Ceiling(_jitterMs / 20f));
 
         ProcessorChain? effects = null;
         var seed = msg.StreamId;
@@ -279,8 +268,8 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             effects = VoiceChainBuilder.Build(ghost, seed);
         }
 
-        return new VoiceStream(msg.Mode, source, new OpusVoiceDecoder(VoiceConstants.SampleRate),
-            new VoiceJitterBuffer(depth), effects);
+        _clipPlayer ??= new EngineVoiceClipPlayer(_audio);
+        return new VoiceStream(msg.Mode, _clipPlayer, new VoiceJitterBuffer(depth), effects);
     }
 
     #endregion
@@ -297,8 +286,6 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         var now = _timing.RealTime;
         var listenerMap = _eye.CurrentEye.Position.MapId;
 
-        // Keep enough audio queued to survive until the next frame, plus a margin.
-        var queueTarget = (int) (VoiceConstants.SampleRate * (Math.Min(frameTime, 0.25f) * 1.5f + 0.03f));
 
         foreach (var (key, stream) in _streams)
         {
@@ -314,8 +301,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
                 stream.Volume = stream.Mode == VoiceReceiveMode.Local
                     ? _localVolume
                     : _radioVolume * GetChannelVolume(stream.Channel);
-                stream.Fill(now, queueTarget);
-                stream.UpdateLevels(now, frameTime);
+                stream.Update(now, frameTime);
             }
             catch (Exception e)
             {
@@ -344,14 +330,14 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             var pos = _xform.GetMapCoordinates(speaker.Value);
             if (pos.MapId == listenerMap)
             {
-                stream.Source.Global = false;
-                stream.Source.Position = pos.Position;
+                stream.Global = false;
+                stream.Position = pos.Position;
                 return;
             }
         }
 
-        stream.Source.Global = true;
-        stream.Source.Position = Vector2.Zero;
+        stream.Global = true;
+        stream.Position = Vector2.Zero;
     }
 
     private void ClearStreams()
@@ -419,167 +405,3 @@ public readonly record struct HeardVoice(
     VoiceLevels Levels,
     bool Talking,
     VoiceRangeMode Range);
-
-/// <summary>
-/// One incoming voice stream: jitter buffer -> decoder -> effects -> streaming source.
-/// </summary>
-public sealed class VoiceStream : IDisposable
-{
-    private const float MuffleSmoothing = 0.25f;
-
-    public readonly VoiceReceiveMode Mode;
-    public readonly IStreamingAudioSource Source;
-    public readonly VoiceJitterBuffer Jitter;
-
-    private readonly OpusVoiceDecoder _decoder;
-    private readonly ProcessorChain? _effects;
-    private readonly Biquad _muffleFilter = new(BiquadType.LowPass, VoiceConstants.SampleRate, 20000f);
-    private readonly Biquad _muffleFilter2 = new(BiquadType.LowPass, VoiceConstants.SampleRate, 20000f);
-    private readonly short[] _pcm = new short[VoiceConstants.SamplesForMs(60)];
-    private readonly float[] _float = new float[VoiceConstants.SamplesForMs(60)];
-    private int _lastFrameSamples = VoiceConstants.SamplesForMs(20);
-
-    private readonly VoiceLevelAnalyzer _analyzer = new();
-    private readonly VoiceLevelTimeline _timeline = new();
-
-    private float _gain;
-    private float _muffle;
-    private float _appliedCutoff = -1;
-
-    public NetEntity Speaker;
-    public VoiceRangeMode Range = VoiceRangeMode.Talk;
-    public string? Channel;
-    public string? Name;
-    public float TargetGain;
-    public float TargetMuffle;
-    public float Volume = 1f;
-    public TimeSpan LastPacket;
-
-    /// <summary>
-    /// How loud what's playing right now is (smoothed), for the speaking indicators.
-    /// </summary>
-    public VoiceLevels Levels;
-
-    public int DecodeErrors { get; private set; }
-
-    public VoiceStream(VoiceReceiveMode mode, IStreamingAudioSource source, OpusVoiceDecoder decoder,
-        VoiceJitterBuffer jitter, ProcessorChain? effects)
-    {
-        Mode = mode;
-        Source = source;
-        _decoder = decoder;
-        Jitter = jitter;
-        _effects = effects;
-    }
-
-    /// <summary>
-    /// Decodes and queues frames until the source has at least <paramref name="targetSamples"/> queued.
-    /// </summary>
-    public void Fill(TimeSpan now, int targetSamples)
-    {
-        // Bounded so a flood of packets can't stall the frame.
-        for (var guard = 0; guard < 12 && Source.QueuedSamples < targetSamples; guard++)
-        {
-            var result = Jitter.Pop(now, out var payload);
-            int count;
-
-            switch (result)
-            {
-                case JitterResult.Idle:
-                    if (!Jitter.Playing)
-                        _effectsIdle = true;
-                    return;
-                case JitterResult.Packet:
-                    count = _decoder.Decode(payload, _pcm);
-                    break;
-                case JitterResult.LostWithFec:
-                    count = _decoder.Decode(payload, _pcm.AsSpan(0, _lastFrameSamples), decodeFec: true);
-                    if (count <= 0)
-                        count = _decoder.DecodeLost(_pcm.AsSpan(0, _lastFrameSamples));
-                    break;
-                default:
-                    count = _decoder.DecodeLost(_pcm.AsSpan(0, _lastFrameSamples));
-                    break;
-            }
-
-            if (count <= 0)
-            {
-                DecodeErrors++;
-                continue;
-            }
-
-            _lastFrameSamples = count;
-            Render(count);
-
-            // Heard once everything already queued has played.
-            var playsAt = now + TimeSpan.FromSeconds(Source.QueuedSamples / (double) VoiceConstants.SampleRate);
-            _timeline.Add(playsAt, _blockLevels);
-
-            if (!Source.QueueSamples(_pcm.AsSpan(0, count)))
-                return;
-        }
-    }
-
-    private bool _effectsIdle;
-    private VoiceLevels _blockLevels;
-
-    /// <summary>
-    /// Moves <see cref="Levels"/> along with the audio being heard.
-    /// </summary>
-    public void UpdateLevels(TimeSpan now, float frameTime)
-    {
-        var current = _timeline.Get(now, TimeSpan.FromSeconds(_lastFrameSamples / (double) VoiceConstants.SampleRate));
-        Levels = Levels.SmoothTowards(current, frameTime);
-    }
-
-    private void Render(int count)
-    {
-        var buffer = _float.AsSpan(0, count);
-        VoiceDsp.ShortToFloat(_pcm.AsSpan(0, count), buffer);
-
-        if (_effectsIdle)
-        {
-            // New talk spurt: don't let the previous one's echo/filter state leak in.
-            _effects?.Reset();
-            _effectsIdle = false;
-        }
-
-        // Environmental muffling: low-pass that closes down from 20 kHz (clear) to ~350 Hz (through a wall).
-        _muffle += (TargetMuffle - _muffle) * MuffleSmoothing;
-        var cutoff = _muffle < 0.02f ? 20000f : 20000f * MathF.Pow(350f / 20000f, _muffle);
-        if (MathF.Abs(cutoff - _appliedCutoff) > 1f)
-        {
-            _muffleFilter.Set(BiquadType.LowPass, VoiceConstants.SampleRate, cutoff);
-            _muffleFilter2.Set(BiquadType.LowPass, VoiceConstants.SampleRate, cutoff);
-            _appliedCutoff = cutoff;
-        }
-
-        if (_muffle >= 0.02f)
-        {
-            _muffleFilter.Process(buffer);
-            _muffleFilter2.Process(buffer);
-        }
-
-        _effects?.Process(buffer);
-
-        // Measured before the player's own volume setting: that shouldn't change how loud someone looks.
-        _blockLevels = _analyzer.Analyze(buffer, TargetGain);
-
-        // Ramp gain across the block to avoid zipper noise when audibility changes.
-        var target = TargetGain * Volume;
-        var step = (target - _gain) / count;
-        for (var i = 0; i < count; i++)
-        {
-            _gain += step;
-            buffer[i] *= _gain;
-        }
-
-        _gain = target;
-        VoiceDsp.FloatToShort(buffer, _pcm.AsSpan(0, count));
-    }
-
-    public void Dispose()
-    {
-        Source.Dispose();
-    }
-}

@@ -1,32 +1,26 @@
 # Voice chat: player guide
 
-Voice chat is part of the game; there's nothing to install. People hear you the way their character would: from
+Voice chat is part of the game; you play from the normal launcher. People hear you the way their character would: from
 where your character is standing, quieter with distance, muffled through doors, not at all through walls or vacuum.
 
 ## Setting up your microphone
 
-1. Open **Options -> Voice**.
-2. Pick your **Microphone** (or leave *System default*).
-3. Press **Test microphone** and talk. You hear yourself exactly as others will, including your character's voice.
-   Adjust **Microphone volume** until the level meter moves well into the bar when you talk normally.
-4. Press **Test microphone** again to stop.
+The game itself doesn't use your microphone: your browser does (or, if you prefer, the Echoes Voice app).
 
-If your microphone gets unplugged, voice reconnects automatically when it's back. You can change microphones at any
-time without restarting.
+1. Open **Options -> Voice** and press **Use browser microphone**. This server's voice page opens in your browser,
+   already linked to you. Allow the microphone there, then leave the tab open (minimising it is fine).
+2. Back in the game, press **Test microphone** and talk: you hear yourself exactly as others will, including your
+   character's voice. Nobody else hears it. Press it again to stop.
+3. Pick a different microphone, or mute, on the voice page itself.
 
-## Using your browser (or the app) as your microphone
-
-If the game can't use your microphone, or you'd rather pick it in your browser, go to **Options -> Voice** and press
-**Use browser microphone**. This server's voice page opens in your browser, already linked to you: allow the
-microphone and leave the tab open (you can minimise it). Everything else stays the same: talk with your usual push to
-talk keys **in the game**, and the game still decides who hears you.
+Everything else stays the same: talk with your push to talk keys **in the game**, and the game decides who hears you.
 
 * **Prefer an app to a browser tab?** The voice page has the **Echoes Voice** app for download. Install it, then press
   **Open in the app** on the voice page, or **Copy link for the app** in Options -> Voice and paste it into the app.
   It reconnects by itself and asks before connecting to a server you haven't used before.
 * **Copy link for the app** copies your personal link for the Echoes Voice app (or another device). Don't share it:
   anyone with it can talk as you until you leave the server.
-* **Use game microphone** switches back. Closing the tab does too.
+* Closing the tab or app stops your voice until you open it again.
 * The console command `voicelink` does the same (`voicelink open`, `copy`, `print`, `off`).
 
 ## Talking

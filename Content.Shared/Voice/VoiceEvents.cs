@@ -242,3 +242,16 @@ public sealed class VoiceExternalKeyEvent : EntityEventArgs
                && Device == other.Device;
     }
 }
+
+/// <summary>
+/// Client to server: play my voice webpage / app microphone back to me (and nobody else) through my voice, or through
+/// <see cref="Profile"/> and <see cref="Filters"/> when previewing a character. Stop with <see cref="Enabled"/> false.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class VoiceExternalTestEvent(bool enabled, VoiceProfile? profile, List<ProtoId<VoiceFilterPrototype>>? filters)
+    : EntityEventArgs
+{
+    public bool Enabled = enabled;
+    public VoiceProfile? Profile = profile;
+    public List<ProtoId<VoiceFilterPrototype>>? Filters = filters;
+}

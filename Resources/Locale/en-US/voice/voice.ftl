@@ -49,7 +49,7 @@ humanoid-profile-editor-character-voice-copy-code-tooltip = Copies this voice as
 humanoid-profile-editor-character-voice-paste-code = Paste code
 humanoid-profile-editor-character-voice-paste-code-tooltip = Sets this character's voice from a code copied with "Copy code".
 humanoid-profile-editor-character-voice-preview = Preview
-humanoid-profile-editor-character-voice-preview-tooltip = Hear your microphone through this character's voice (including species). Nothing is sent to anyone.
+humanoid-profile-editor-character-voice-preview-tooltip = Hear your microphone (the voice page in your browser, or the Echoes Voice app) through this character's voice, including species. Nobody else hears it. Opens the voice page if it isn't connected yet.
 humanoid-profile-editor-character-voice-randomize = Randomize
 humanoid-profile-editor-character-voice-reset = Reset
 
@@ -67,14 +67,9 @@ ui-options-tab-voice = Voice
 ui-options-voice-header = Voice chat
 ui-options-voice-enabled = Enable voice chat (speaking and hearing)
 ui-options-voice-transcribe-notice = This server converts voice chat to text for its admin logs, like text chat is logged. Your audio itself is not recorded.
-ui-options-voice-input-header = Microphone
-ui-options-voice-input-device = Microphone
-ui-options-voice-input-device-default = System default
-ui-options-voice-input-device-missing = { $device } (not connected)
-ui-options-voice-input-gain = Microphone volume
 ui-options-voice-level = Input level
 ui-options-voice-mic-test = Test microphone
-ui-options-voice-mic-test-tooltip = Hear yourself through your current character's voice. Nothing is sent to the server.
+ui-options-voice-mic-test-tooltip = Hear yourself through your current character's voice. Nobody else hears it. Needs your browser or app microphone connected.
 ui-options-voice-transmit-header = Transmission
 ui-options-voice-input-mode = Mode
 ui-options-voice-mode-ptt = Push to talk
@@ -83,9 +78,6 @@ ui-options-voice-ptt-hint = Push to talk: { $key }. Radio: { $radioKey }. Change
 ui-options-voice-unbound = unbound
 ui-options-voice-activation-threshold = Voice activation threshold
 ui-options-voice-activation-release = Voice activation hold time
-ui-options-voice-noise-gate = Noise gate
-ui-options-voice-noise-suppression = Noise suppression
-ui-options-voice-noise-suppression-hint = Removes steady background noise (fans, hum, hiss). Check it with "Test microphone".
 ui-options-voice-radio-keys-header = Extra radio keys
 ui-options-voice-radio-keys-hint = Each key talks on its own channel. Bind them in Controls under "Voice".
 ui-options-voice-radio-key2 = Radio key 2 channel
@@ -106,11 +98,10 @@ ui-options-voice-mute-hint = To mute or change the volume of a specific player, 
 
 ui-options-voice-status-server-disabled = Voice chat is disabled on this server.
 ui-options-voice-status-admin-muted = You have been muted from voice chat by an administrator.
-ui-options-voice-status-unsupported = Microphone capture isn't supported on this system.
-ui-options-voice-status-unavailable = No microphone could be opened. Check it's plugged in and that the game is allowed to use it.
-ui-options-voice-status-disconnected = Microphone disconnected. Reconnecting automatically...
-ui-options-voice-status-capturing = Using { $device }.
-ui-options-voice-status-idle = Microphone is closed until you talk.
+ui-options-voice-status-no-microphone = No microphone connected yet: use your browser or the Echoes Voice app below.
+ui-options-voice-status-capturing = Your microphone: { $device }.
+ui-options-voice-device-web = the voice page in your browser
+ui-options-voice-device-app = the Echoes Voice app
 
 ## Client commands
 
@@ -187,8 +178,9 @@ voice-panel-mute-admin-tooltip-timed = An admin has muted your voice for { $minu
 
 ## Voice webpage / app as the microphone
 
-ui-options-voice-external-header = Browser or app microphone
-ui-options-voice-external-status-off = You can use your web browser, or the Echoes Voice app, as your microphone instead of the game.
+ui-options-voice-external-header = Microphone
+ui-options-voice-external-status-off = Voice chat uses your web browser, or the Echoes Voice app, as your microphone. Press Use browser microphone, or copy the link into the app.
+ui-options-voice-external-status-not-in-game = Join a server with voice chat to connect your microphone.
 ui-options-voice-external-status-web = Your microphone is the voice webpage in your browser. Keep it open; your push to talk keys still work as usual.
 ui-options-voice-external-status-app = Your microphone is the Echoes Voice app. Your push to talk keys still work as usual.
 ui-options-voice-external-open = Use browser microphone

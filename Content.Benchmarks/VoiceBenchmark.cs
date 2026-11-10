@@ -5,7 +5,7 @@ using Content.Server.Voice.Acoustics;
 using Content.Shared.Voice;
 using Content.Shared.Voice.Dsp;
 using Content.Shared.Voice.Effects;
-using Robust.Shared.Audio.Codecs;
+using Content.Shared.Voice.Codecs;
 using Robust.Shared.Maths;
 
 namespace Content.Benchmarks;
@@ -23,12 +23,11 @@ public class VoiceBenchmark
     private readonly AcousticField _field = new();
     private ProcessorChain _senderChain = default!;
     private ProcessorChain _radioChain = default!;
-    private OpusVoiceEncoder _encoder = default!;
-    private OpusVoiceDecoder _decoder = default!;
     private readonly float[] _floats = new float[Frame];
     private readonly short[] _pcm = new short[Frame];
-    private readonly byte[] _packet = new byte[1275];
-    private byte[] _encoded = default!;
+    private readonly short[] _pcm16 = new short[ImaAdpcm.FrameSamples];
+    private readonly byte[] _packet = new byte[ImaAdpcm.FrameBytes];
+    private ImaAdpcm.State _adpcm;
 
     /// <summary>
     /// A station-like grid: 6x6 rooms separated by walls with a door in each wall, pressurized.
@@ -72,16 +71,13 @@ public class VoiceBenchmark
             new NoiseProcessor(VoiceConstants.SampleRate, 0.006f, false, 900, 5000, 5),
         });
 
-        _encoder = new OpusVoiceEncoder(VoiceConstants.SampleRate) { Bitrate = 24000, Complexity = 6, UseInbandFec = true };
-        _decoder = new OpusVoiceDecoder(VoiceConstants.SampleRate);
-
         for (var i = 0; i < Frame; i++)
         {
             _pcm[i] = (short) (System.MathF.Sin(i * 0.03f) * 6000 + System.MathF.Sin(i * 0.17f) * 2000);
         }
 
-        var length = _encoder.Encode(_pcm, _packet);
-        _encoded = _packet[..length];
+        System.Array.Copy(_pcm, _pcm16, _pcm16.Length);
+        ImaAdpcm.Encode(_pcm16, ref _adpcm, _packet);
     }
 
     [Benchmark(Description = "Acoustic field, 10 tile range, rooms + doors")]
@@ -99,16 +95,18 @@ public class VoiceBenchmark
         return _floats[0];
     }
 
-    [Benchmark(Description = "Opus encode, 20 ms")]
-    public int Encode()
+    [Benchmark(Description = "ADPCM encode, 20 ms")]
+    public byte Encode()
     {
-        return _encoder.Encode(_pcm, _packet);
+        ImaAdpcm.Encode(_pcm16, ref _adpcm, _packet);
+        return _packet[3];
     }
 
-    [Benchmark(Description = "Opus decode, 20 ms")]
-    public int Decode()
+    [Benchmark(Description = "ADPCM decode, 20 ms")]
+    public short Decode()
     {
-        return _decoder.Decode(_encoded, _pcm);
+        ImaAdpcm.Decode(_packet, _pcm16);
+        return _pcm16[0];
     }
 
     [Benchmark(Description = "Receive radio chain, 20 ms")]

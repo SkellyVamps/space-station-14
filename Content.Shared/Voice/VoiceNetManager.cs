@@ -14,18 +14,12 @@ public sealed partial class VoiceNetManager
     [Dependency] private INetManager _net = default!;
 
     /// <summary>
-    /// Server: a client sent a voice frame.
-    /// </summary>
-    public event Action<MsgVoiceTransmit>? TransmitReceived;
-
-    /// <summary>
     /// Client: the server forwarded a voice frame.
     /// </summary>
     public event Action<MsgVoiceReceive>? VoiceReceived;
 
     public void Initialize()
     {
-        _net.RegisterNetMessage<MsgVoiceTransmit>(msg => TransmitReceived?.Invoke(msg));
         _net.RegisterNetMessage<MsgVoiceReceive>(msg => VoiceReceived?.Invoke(msg));
     }
 }

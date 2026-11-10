@@ -6,7 +6,6 @@ using Content.Shared.Voice.Codecs;
 using Content.Shared.Voice.Components;
 using Content.Shared.Voice.Dsp;
 using Robust.Server.Player;
-using Robust.Shared.Audio.Codecs;
 using Robust.Shared.Configuration;
 using Robust.Shared.Enums;
 using Robust.Shared.Network;
@@ -24,8 +23,8 @@ namespace Content.Server.Voice.External;
 /// <para>The page only records. When the player is heard is still decided by the game: their client reports what
 /// its talk keys are doing (<see cref="VoiceExternalKeyEvent"/>), and audio outside of that is dropped here.</para>
 /// <para>Each 20 ms frame is decoded (16 kHz ADPCM), brought up to the game's 48 kHz, given the speaker's voice
-/// (character, species, mask, status... the same chain their client would use), encoded like a game client would and
-/// handed to <see cref="VoiceSystem.HandleTransmit"/>, so routing, radio, moderation, voice-to-text and everything
+/// (character, species, mask, status... the same chain their client would use), encoded and
+/// handed to <see cref="VoiceSystem.HandleTransmit"/> as 16 kHz ADPCM, so routing, radio, moderation, voice-to-text and everything
 /// else work exactly as for the game's own microphone.</para>
 /// </remarks>
 public sealed partial class VoiceExternalMicSystem : EntitySystem
@@ -53,10 +52,8 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
     private readonly Dictionary<NetUserId, Mic> _mics = new();
     private readonly short[] _decoded = new short[ImaAdpcm.FrameSamples];
     private readonly float[] _frame = new float[FrameSamples48];
-    private readonly short[] _frameShort = new short[FrameSamples48];
-    private readonly byte[] _packet = new byte[1275];
+    private readonly short[] _frameShort = new short[ImaAdpcm.FrameSamples];
 
-    private int _bitrate;
     private bool _enabled;
 
     public override void Initialize()
@@ -66,9 +63,9 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
         SubscribeNetworkEvent<VoiceExternalLinkRequestEvent>(OnLinkRequest);
         SubscribeNetworkEvent<VoiceExternalDisconnectEvent>(OnDisconnectRequest);
         SubscribeNetworkEvent<VoiceExternalKeyEvent>(OnKeys);
+        SubscribeNetworkEvent<VoiceExternalTestEvent>(OnTest);
         _players.PlayerStatusChanged += OnPlayerStatusChanged;
 
-        Subs.CVar(_cfg, CCVars.VoiceBitrate, v => _bitrate = v, true);
         Subs.CVar(_cfg, CCVars.VoiceExternalEnabled, v => _enabled = v, true);
     }
 
@@ -143,6 +140,59 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
         GetMic(user).Keys = keys;
     }
 
+    private const int MaxTestFilters = 16;
+
+    private void OnTest(VoiceExternalTestEvent ev, EntitySessionEventArgs args)
+    {
+        var mic = GetMic(args.SenderSession.UserId);
+        mic.Test = ev.Enabled;
+
+        // Only ever heard by the player themselves, but keep it to real, reasonable voices all the same.
+        mic.TestProfile = ev.Profile?.Clamped(_cfg.GetCVar(CCVars.VoiceProfileMaxPitch), _cfg.GetCVar(CCVars.VoiceProfileMaxFormant));
+        mic.TestFilters = null;
+        if (ev.Filters is { Count: <= MaxTestFilters } filters)
+        {
+            mic.TestFilters = new List<ProtoId<VoiceFilterPrototype>>();
+            foreach (var filter in filters)
+            {
+                if (_proto.HasIndex(filter))
+                    mic.TestFilters.Add(filter);
+            }
+        }
+
+        mic.TestChain = null;
+        if (ev.Enabled)
+            EndTransmission(args.SenderSession, mic);
+    }
+
+    /// <summary>
+    /// Hearing yourself: the page's audio through your voice (or the one being previewed), back to you alone.
+    /// </summary>
+    private void ProcessTestFrame(ICommonSession session, Mic mic)
+    {
+        if (mic.TestChain == null)
+        {
+            if (mic.TestProfile is { } profile)
+            {
+                mic.TestChain = VoiceChainBuilder.Build(_proto, profile,
+                    mic.TestFilters ?? new List<ProtoId<VoiceFilterPrototype>>(), 0);
+            }
+            else if (session.AttachedEntity is { } entity && TryComp(entity, out VoiceSpeakerComponent? speaker))
+            {
+                mic.TestChain = VoiceChainBuilder.Build(_proto, speaker.Profile, speaker.Filters, speaker.Seed);
+            }
+            else
+            {
+                mic.TestChain = VoiceChainBuilder.Build(_proto, VoiceProfile.Neutral,
+                    new List<ProtoId<VoiceFilterPrototype>>(), 0);
+            }
+        }
+
+        mic.TestChain.Process(_frame);
+        mic.Limiter.Process(_frame);
+        _voice.SendLoopback(session, Encode(mic), mic.TestSequence++, false);
+    }
+
     private Mic GetMic(NetUserId user)
     {
         if (!_mics.TryGetValue(user, out var mic))
@@ -213,6 +263,14 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
         mic.LastSample = previous;
 
         var level = VoiceDsp.RmsDb(_frame);
+
+        // Testing: only the player hears it, whatever the keys say.
+        if (mic.Test)
+        {
+            ProcessTestFrame(session, mic);
+            return;
+        }
+
         var keys = mic.Keys;
 
         // Same rules as the game's own microphone: a talk key held, or voice activation and loud enough.
@@ -254,18 +312,7 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
         // Their voice: character, species, gear, status, exactly as their client would.
         GetChain(mic, speakerComp).Process(_frame);
         mic.Limiter.Process(_frame);
-        VoiceDsp.FloatToShort(_frame, _frameShort);
-
-        mic.Encoder ??= new OpusVoiceEncoder(VoiceConstants.SampleRate)
-        {
-            Complexity = 6,
-            UseInbandFec = true,
-        };
-        mic.Encoder.Bitrate = _bitrate;
-
-        var length = mic.Encoder.Encode(_frameShort, _packet);
-        if (length <= 0)
-            return;
+        var payload = Encode(mic);
 
         mic.Transmitting = true;
         mic.SentRadio = radio;
@@ -279,10 +326,32 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
             Sequence = mic.Sequence++,
             RadioChannel = channel,
             Device = device ?? NetEntity.Invalid,
-            Payload = _packet.AsSpan(0, length).ToArray(),
+            Payload = payload,
         }, fromServer: true);
 
         SendStatus(session, mic, false);
+    }
+
+    /// <summary>
+    /// The processed 48 kHz frame, back down to 16 kHz ADPCM for the wire.
+    /// </summary>
+    private byte[] Encode(Mic mic)
+    {
+        // Low-pass, then every third sample.
+        for (var i = 0; i < ImaAdpcm.FrameSamples; i++)
+        {
+            var sample = 0f;
+            for (var j = 0; j < 3; j++)
+            {
+                sample = mic.Down2.ProcessSample(mic.Down1.ProcessSample(_frame[i * 3 + j]));
+            }
+
+            _frameShort[i] = (short) (Math.Clamp(sample, -1f, 1f) * 32767f);
+        }
+
+        var payload = new byte[ImaAdpcm.FrameBytes];
+        ImaAdpcm.Encode(_frameShort, ref mic.Adpcm, payload);
+        return payload;
     }
 
     private void EndTransmission(ICommonSession session, Mic mic)
@@ -367,7 +436,15 @@ public sealed partial class VoiceExternalMicSystem : EntitySystem
         public readonly CompressorProcessor Limiter = new(VoiceConstants.SampleRate, -3f, 20f, 1f, 50f, 0f, 2f);
         public float LastSample;
 
-        public OpusVoiceEncoder? Encoder;
+        public readonly Biquad Down1 = new(BiquadType.LowPass, VoiceConstants.SampleRate, 7000f);
+        public readonly Biquad Down2 = new(BiquadType.LowPass, VoiceConstants.SampleRate, 7000f);
+        public ImaAdpcm.State Adpcm;
+
+        public bool Test;
+        public VoiceProfile? TestProfile;
+        public List<ProtoId<VoiceFilterPrototype>>? TestFilters;
+        public ProcessorChain? TestChain;
+        public ushort TestSequence;
         public ProcessorChain? Chain;
         public int ChainHash;
 
