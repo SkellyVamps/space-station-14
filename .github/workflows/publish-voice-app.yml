@@ -1,8 +1,9 @@
 name: Publish Echoes Voice app
 
 # Builds the standalone voice app (EchoesVoice/) for Windows, macOS and Linux and attaches it to a GitHub release.
-# Run it from Actions -> Publish Echoes Voice app -> Run workflow with a new tag such as voice-app-v1.0.0, or push such
-# a tag. Server owners then link to the release (voice.external_app_download_url) or put the zips in their server's
+# Easiest: on GitHub, Releases -> Draft a new release, create a tag such as voice-app-v1.0.0 with the target set to the
+# branch to build, and publish: this runs and adds the zips to that release. Once this file is on the default branch it
+# can also be run from Actions -> Publish Echoes Voice app -> Run workflow. Server owners then link to the release (voice.external_app_download_url) or put the zips in their server's
 # voice-app/ data folder.
 
 on:
@@ -14,12 +15,19 @@ on:
   push:
     tags:
       - "voice-app-v*"
+  release:
+    types: [published]
+
+# A release made on GitHub can fire both the release and the tag push: run them one after the other, not side by side.
+concurrency:
+  group: publish-voice-app-${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: ${{ github.event_name != 'release' || startsWith(github.ref_name, 'voice-app-v') }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -102,12 +110,17 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Create release
+      - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
-        run: >
-          gh release create "$TAG" dist/*.zip --repo "${{ github.repository }}" --target "${{ github.sha }}"
-          --title "Echoes Voice $TAG"
-          --notes "The standalone voice app for Space Station 14, Echoes of the Void. Download the zip for your system,
-          unzip and run it, then paste the link from the game (Options > Voice > Copy link for the app)."
+          REPO: ${{ github.repository }}
+        run: |
+          # Made from GitHub's "Draft a new release" page, the release already exists: just add the files to it.
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" dist/*.zip --repo "$REPO" --target "${{ github.sha }}" \
+              --title "Echoes Voice $TAG" \
+              --notes "The standalone voice app for Space Station 14, Echoes of the Void. Download the zip for your system, unzip and run it, then paste the link from the game (Options > Voice > Copy link for the app)."
+          fi
