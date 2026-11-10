@@ -43,7 +43,7 @@ talk keys **in the game**, and the game still decides who hears you.
 
 ### Whisper, talk, shout
 
-The slider at the top of the voice panel picks **Whisper** (only the people right next to you), **Talk** or **Shout**
+The bar at the top of the voice panel picks **Whisper** (only the people right next to you), **Talk** or **Shout**
 (across a room). While whispering, a blue circle around you shows how far you're heard; switching shows the new range
 for a moment (Options -> Voice can turn the circle off). Walls and doors still muffle you. You can also bind a key to it in
 Options -> Controls ("Voice: switch whisper / talk / shout"). It only changes your voice in person, not the radio.

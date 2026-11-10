@@ -47,8 +47,7 @@ public sealed class VoiceRadioPanel : Control
     private readonly ScrollContainer _listenScroll;
     private readonly Label _noChannels;
     private readonly Button _expand;
-    private readonly Slider _range;
-    private readonly Label _rangeLabel;
+    private readonly VoiceRangeSlider _range;
     private readonly Button _mute;
 
     private static readonly Color MutedColor = Color.FromHex("#E04545");
@@ -115,39 +114,18 @@ public sealed class VoiceRadioPanel : Control
             ExpandedChanged?.Invoke(args.Pressed);
         };
 
-        // Three stops: whisper, talk, shout.
-        _range = new Slider
+        // Three stops: whisper, talk, shout, written in the bar.
+        _range = new VoiceRangeSlider
         {
-            MinValue = 0,
-            MaxValue = 2,
-            Rounded = true,
             Value = (int) VoiceRangeMode.Talk,
             HorizontalExpand = true,
-            VerticalAlignment = VAlignment.Center,
+            Margin = new Thickness(0, 3, 0, 0),
             ToolTip = Loc.GetString("voice-panel-range-tooltip"),
         };
         _range.OnValueChanged += range =>
         {
             var mode = (VoiceRangeMode) Math.Clamp((int) MathF.Round(range.Value), 0, 2);
             RangeSelected?.Invoke(mode);
-        };
-
-        _rangeLabel = new Label
-        {
-            MinWidth = 58,
-            VerticalAlignment = VAlignment.Center,
-            ToolTip = Loc.GetString("voice-panel-range-tooltip"),
-        };
-
-        var rangeRow = new BoxContainer
-        {
-            Orientation = BoxContainer.LayoutOrientation.Horizontal,
-            Margin = new Thickness(0, 3, 0, 0),
-            Children =
-            {
-                _rangeLabel,
-                _range,
-            },
         };
 
         _mute = new Button
@@ -177,7 +155,7 @@ public sealed class VoiceRadioPanel : Control
         var headerBlock = new BoxContainer
         {
             Orientation = BoxContainer.LayoutOrientation.Vertical,
-            Children = { header, rangeRow },
+            Children = { header, _range },
         };
 
         _speakers = new BoxContainer
@@ -275,17 +253,7 @@ public sealed class VoiceRadioPanel : Control
     public void UpdateControls(VoiceRangeMode range, Color rangeColor, bool selfMuted, bool adminMuted,
         TimeSpan? adminMuteRemaining, double time)
     {
-        var rangeText = Loc.GetString(range switch
-        {
-            VoiceRangeMode.Whisper => "voice-range-whisper",
-            VoiceRangeMode.Shout => "voice-range-shout",
-            _ => "voice-range-talk",
-        });
-
-        if (_rangeLabel.Text != rangeText)
-            _rangeLabel.Text = rangeText;
-
-        _rangeLabel.FontColorOverride = rangeColor;
+        _range.SetSelected(range, rangeColor);
 
         // Follow changes made elsewhere (the keybind), but never fight the player dragging it.
         if (!_range.Grabbed && (int) MathF.Round(_range.Value) != (int) range)
