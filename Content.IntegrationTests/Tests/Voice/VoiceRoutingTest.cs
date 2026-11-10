@@ -83,6 +83,23 @@ public sealed class VoiceRoutingTest : GameTest
     interfaces:
       enum.IntercomUiKey.Key:
         type: IntercomBoundUserInterface
+
+- type: entity
+  id: VoiceTestWallIntercom
+  components:
+  - type: Transform
+    anchored: true
+  - type: WallMount
+  - type: Sprite
+    sprite: Structures/Wallmounts/intercom.rsi
+    state: base
+  - type: Intercom
+    requiresPower: false
+    currentChannel: Handheld
+    supportedChannels: [ Handheld ]
+  - type: RadioSpeaker
+    channels: [ Handheld ]
+  - type: TelecomExempt
 ";
 
     public override PoolSettings PoolSettings => new() { DummyTicker = false, Connected = true, Dirty = true };
@@ -594,6 +611,38 @@ public sealed class VoiceRoutingTest : GameTest
         before = ClientReceived;
         await Speak(_dummy, radio: true);
         Assert.That(ClientReceived, Is.EqualTo(before));
+    }
+
+    [Test]
+    public async Task WallMountedIntercomPlaysIntoTheRoom()
+    {
+        // Nobody has a radio receiver; the speaker is far away and talks on the Handheld channel.
+        await Setup("VoiceTestHandheldTalker");
+
+        EntityUid intercom = default;
+        await Pair.Server.WaitPost(() =>
+        {
+            Ent.System<SharedTransformSystem>().SetMapCoordinates(_speaker,
+                new MapCoordinates(new Vector2(200, 200), Ent.GetComponent<TransformComponent>(_listener).MapID));
+
+            // A wall along the top of the room with an intercom on it, facing down into the room, as on a station.
+            var wallAt = new EntityCoordinates(_grid.Owner, new Vector2(3.5f, 2.5f));
+            Ent.SpawnAtPosition("WallSolid", wallAt);
+            intercom = Ent.SpawnAtPosition("VoiceTestWallIntercom", wallAt);
+            Ent.System<RadioDeviceSystem>().SetSpeakerEnabled(intercom, null, true, quiet: true);
+            Ent.System<VoiceAudibilitySystem>().InvalidateAll();
+        });
+        await Task.Delay(300);
+        await RunTicksSync(10);
+
+        var before = ClientReceived;
+        await Speak(_dummy, radio: true);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "heard from the intercom on the wall, with no headset");
+
+        var last = Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value;
+        Assert.That(last.Mode, Is.EqualTo(VoiceReceiveMode.Loudspeaker));
+        Assert.That(last.Speaker, Is.EqualTo(Ent.GetNetEntity(intercom)));
+        Assert.That(last.Channel, Is.EqualTo("Handheld"));
     }
 
     [Test]

@@ -310,3 +310,11 @@ records with OpenAL Soft (`Robust.Natives.OpenAL`) at 16 kHz, runs the shared `N
 shared `ImaAdpcm`, and registers the `echoesvoice://connect?server=...&code=...` link for the voice page's
 "Open in the app" button (Windows registry, Linux .desktop, macOS Info.plist). Links that arrive from outside for a
 server the player hasn't approved before always ask first.
+
+## Wall-mounted devices
+
+Intercoms and other `WallMount` entities sit inside a wall tile, which has no air, so sound couldn't start or arrive
+there. `VoiceAudibilitySystem.GetAcousticPosition` places them on the tile they face (`WallMount.Direction` plus the
+entity's rotation, so any placement direction works), or, if that's solid or airless (mounted between windows), the
+nearest open air: the other sides, two tiles out, then the diagonals. `VoiceIntercomMapTest` loads real stations and
+checks every intercom on them is heard in front of it.

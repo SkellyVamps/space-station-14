@@ -2,6 +2,7 @@ using System.Numerics;
 using Content.Server.Atmos.Components;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.Voice.Acoustics;
+using Content.Shared.Wall;
 using Content.Shared.Bed.Sleep;
 using Content.Shared.CCVar;
 using Content.Shared.Mobs.Systems;
@@ -47,6 +48,7 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
     private EntityQuery<VoiceContainerAcousticsComponent> _containerAcousticsQuery;
     private EntityQuery<EntityStorageComponent> _storageQuery;
     private EntityQuery<MapGridComponent> _gridQuery;
+    private EntityQuery<WallMountComponent> _wallMountQuery;
     private EntityQuery<SleepingComponent> _sleepingQuery;
 
     private readonly Dictionary<EntityUid, GridAcoustics> _grids = new();
@@ -84,6 +86,7 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
         _containerAcousticsQuery = GetEntityQuery<VoiceContainerAcousticsComponent>();
         _storageQuery = GetEntityQuery<EntityStorageComponent>();
         _gridQuery = GetEntityQuery<MapGridComponent>();
+        _wallMountQuery = GetEntityQuery<WallMountComponent>();
         _sleepingQuery = GetEntityQuery<SleepingComponent>();
 
         SubscribeLocalEvent<AirtightComponent, AirtightChanged>(OnAirtightChanged);
@@ -191,6 +194,35 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
 
         if (grid != null && _gridQuery.TryComp(grid, out var gridComp))
             tile = _map.TileIndicesFor(grid.Value, gridComp, xform.Coordinates);
+
+        // Intercoms and other wall-mounted things sit inside the wall, where there's no air and sound can't
+        // start: they sound (and listen) on the tile they face.
+        if (grid != null && containers.Count == 0 && _wallMountQuery.TryComp(current, out var mount))
+        {
+            // The side it's mounted facing, whichever way it was placed on the map. If that side is solid or
+            // airless (mounted between windows, an odd placement), the nearest open air around it: the other sides,
+            // then two tiles out, then the diagonals.
+            var facing = (mount.Direction + _xform.GetWorldRotation(xform)).ToWorldVec();
+            var front = new Vector2i((int) MathF.Round(facing.X), (int) MathF.Round(facing.Y));
+            if (front == Vector2i.Zero)
+                front = new Vector2i(0, -1);
+
+            var left = new Vector2i(-front.Y, front.X);
+            ReadOnlySpan<Vector2i> candidates = stackalloc Vector2i[]
+            {
+                front, -front, left, -left,
+                front * 2, -front * 2, left * 2, -left * 2,
+                front + left, front - left, -front + left, -front - left,
+            };
+
+            foreach (var offset in candidates)
+            {
+                if (IsOpenAir(grid.Value, tile + offset))
+                    return new AcousticPosition(uid, current, mapPos, grid, tile + offset, containers, true);
+            }
+
+            return new AcousticPosition(uid, current, mapPos, grid, tile + front, containers, true);
+        }
 
         return new AcousticPosition(uid, current, mapPos, grid, tile, containers);
     }
@@ -373,10 +405,25 @@ public sealed partial class VoiceAudibilitySystem : EntitySystem
         return new AcousticBarrier(_defaultContainerPenalty, _defaultContainerMuffle, false);
     }
 
+    /// <summary>
+    /// Whether sound can be made on this tile: not inside something solid, and with air.
+    /// </summary>
+    private bool IsOpenAir(EntityUid grid, Vector2i indices)
+    {
+        var tile = ReadTile(grid, indices);
+        if (!tile.Open || tile.Fill.Blocks)
+            return false;
+
+        var air = _atmos.GetTileMixture(grid, null, indices);
+        return AcousticMath.PressureFactor(air?.Pressure ?? 0f, _minPressure, _fullPressure) > 0f;
+    }
+
     private float GetPressureFactor(in AcousticPosition pos)
     {
-        // Includes the air inside lockers and similar.
-        var mixture = _atmos.GetContainingMixture(pos.Entity);
+        // Includes the air inside lockers and similar. Wall-mounted things use the air of the tile they face.
+        var mixture = pos.FacingTile && pos.Grid is { } grid
+            ? _atmos.GetTileMixture(grid, null, pos.Tile)
+            : _atmos.GetContainingMixture(pos.Entity);
         return AcousticMath.PressureFactor(mixture?.Pressure ?? 0f, _minPressure, _fullPressure);
     }
 
@@ -536,4 +583,5 @@ public readonly record struct AcousticPosition(
     MapCoordinates Map,
     EntityUid? Grid,
     Vector2i Tile,
-    List<(EntityUid Owner, AcousticBarrier Barrier)> Containers);
+    List<(EntityUid Owner, AcousticBarrier Barrier)> Containers,
+    bool FacingTile = false);
