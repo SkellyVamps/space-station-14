@@ -73,6 +73,30 @@ public sealed class VoiceRangeSlider : Slider
         }
     }
 
+    private static readonly string[] Tooltips =
+    {
+        "voice-range-whisper-tooltip",
+        "voice-range-talk-tooltip",
+        "voice-range-shout-tooltip",
+    };
+
+    protected override void MouseMove(GUIMouseMoveEventArgs args)
+    {
+        base.MouseMove(args);
+
+        // One bar, three words: describe the one under the mouse.
+        var index = Math.Clamp((int) (args.RelativePosition.X / Math.Max(1f, Size.X) * 3f), 0, 2);
+        if (index == _tooltipIndex)
+            return;
+
+        // Moved onto another word: drop the shown tooltip so the new one comes up instead.
+        _tooltipIndex = index;
+        HideTooltip();
+        ToolTip = Loc.GetString(Tooltips[index]);
+    }
+
+    private int _tooltipIndex = -1;
+
     protected override void Resized()
     {
         // A third of the bar: at each stop the knob covers exactly one word.

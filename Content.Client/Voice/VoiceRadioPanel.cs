@@ -120,7 +120,6 @@ public sealed class VoiceRadioPanel : Control
             Value = (int) VoiceRangeMode.Talk,
             HorizontalExpand = true,
             Margin = new Thickness(0, 3, 0, 0),
-            ToolTip = Loc.GetString("voice-panel-range-tooltip"),
         };
         _range.OnValueChanged += range =>
         {

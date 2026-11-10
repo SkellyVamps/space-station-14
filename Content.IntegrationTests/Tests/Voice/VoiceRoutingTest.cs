@@ -155,7 +155,9 @@ public sealed class VoiceRoutingTest : GameTest
         await RunTicksSync(10);
     }
 
-    private async Task Speak(ICommonSession session, bool radio = false, ushort? seq = null, EntityUid? device = null)
+    /// <param name="fromServer">As the voice page / app path delivers it (its own rate limit), rather than a raw packet.</param>
+    private async Task Speak(ICommonSession session, bool radio = false, ushort? seq = null, EntityUid? device = null,
+        bool fromServer = false)
     {
         await Pair.Server.WaitPost(() =>
         {
@@ -168,7 +170,7 @@ public sealed class VoiceRoutingTest : GameTest
                 // Counting up like a real client; random numbers occasionally land in the "too old" range.
                 Sequence = seq ?? _nextSequence++,
                 Payload = _voiceFrame,
-            });
+            }, fromServer);
         });
 
         await RunTicksSync(5);
@@ -267,7 +269,7 @@ public sealed class VoiceRoutingTest : GameTest
             // Half a second of talking, then letting go.
             for (var i = 0; i < 25; i++)
             {
-                await Speak(_dummy);
+                await Speak(_dummy, fromServer: true);
             }
 
             await EndSpurt(_dummy);
@@ -279,7 +281,7 @@ public sealed class VoiceRoutingTest : GameTest
             Assert.That(fake.LastSampleCount, Is.EqualTo(25 * 320));
 
             // A click (too short to be words) isn't sent to speech recognition.
-            await Speak(_dummy);
+            await Speak(_dummy, fromServer: true);
             await EndSpurt(_dummy);
             await RunTicksSync(20);
             Assert.That(logged, Has.Count.EqualTo(1));
@@ -288,7 +290,7 @@ public sealed class VoiceRoutingTest : GameTest
             await Pair.Server.WaitPost(() => Ent.System<VoiceSystem>().SetRange(_dummy, VoiceRangeMode.Whisper));
             for (var i = 0; i < 20; i++)
             {
-                await Speak(_dummy);
+                await Speak(_dummy, fromServer: true);
             }
 
             await EndSpurt(_dummy);
@@ -690,6 +692,16 @@ public sealed class VoiceRoutingTest : GameTest
         Assert.That(ClientReceived, Is.EqualTo(before + 2), "headset and the intercom speaker next to them");
         Assert.That(Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value.Speaker,
             Is.EqualTo(Ent.GetNetEntity(other)), "the out loud copy plays from that intercom");
+
+        // Turning Common off in the voice panel silences their headset, not the intercom in the room.
+        await Pair.Server.WaitPost(() =>
+            Ent.System<VoiceSystem>().SetRadioMutedChannels(_clientSession.UserId, new List<string> { "Common" }));
+        before = ClientReceived;
+        await Speak(_dummy, device: intercom);
+        Assert.That(ClientReceived, Is.EqualTo(before + 1), "still heard from the intercom");
+        Assert.That(Pair.Client.EntMan.System<VoicePlaybackSystem>().LastPacket!.Value.Mode,
+            Is.EqualTo(VoiceReceiveMode.Loudspeaker));
+        await Pair.Server.WaitPost(() => Ent.System<VoiceSystem>().SetRadioMutedChannels(_clientSession.UserId, null));
     }
 
     [Test]

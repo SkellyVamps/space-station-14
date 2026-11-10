@@ -109,7 +109,7 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
         // Stop anything already playing on a channel that was just muted.
         foreach (var (key, stream) in _streams)
         {
-            if (stream.Mode != VoiceReceiveMode.Local && stream.Channel != null && _mutedRadioChannels.Contains(stream.Channel))
+            if (stream.Mode == VoiceReceiveMode.Radio && stream.Channel != null && _mutedRadioChannels.Contains(stream.Channel))
                 _toRemove.Add(key);
         }
     }
@@ -200,7 +200,8 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             return;
 
         // The server stops sending muted channels once it knows; this covers the gap.
-        if (msg.Mode != VoiceReceiveMode.Local && msg.Channel != null && _mutedRadioChannels.Contains(msg.Channel))
+        // Only our own radio: an intercom playing a channel out loud is heard in the room regardless.
+        if (msg.Mode == VoiceReceiveMode.Radio && msg.Channel != null && _mutedRadioChannels.Contains(msg.Channel))
             return;
 
         try
@@ -298,9 +299,10 @@ public sealed partial class VoicePlaybackSystem : EntitySystem
             try
             {
                 UpdatePosition(stream, listenerMap);
-                stream.Volume = stream.Mode == VoiceReceiveMode.Local
-                    ? _localVolume
-                    : _radioVolume * GetChannelVolume(stream.Channel);
+                // Intercoms playing out loud are sounds in the room, like people talking.
+                stream.Volume = stream.Mode == VoiceReceiveMode.Radio
+                    ? _radioVolume * GetChannelVolume(stream.Channel)
+                    : _localVolume;
                 stream.Update(now, frameTime);
             }
             catch (Exception e)

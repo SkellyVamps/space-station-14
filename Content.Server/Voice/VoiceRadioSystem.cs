@@ -196,7 +196,23 @@ public sealed partial class VoiceRadioSystem : EntitySystem
         var query = EntityQueryEnumerator<ActiveRadioComponent, TransformComponent>();
         while (query.MoveNext(out var receiver, out var radio, out var xform))
         {
-            if (!radio.ReceiveAllChannels)
+            // A device with its speaker on plays it for everyone around (never the one transmitting, no feedback).
+            // It plays the channel it's tuned to now: an intercom's dial, a handheld radio's channels.
+            var loudspeaker = false;
+            if (loudspeakers != null
+                && receiver != radioSource
+                && _speakerQuery.TryComp(receiver, out var speaker)
+                && speaker.Enabled)
+            {
+                var speakerChannels = speaker.Channels;
+                loudspeaker = _intercomQuery.TryComp(receiver, out var tuned)
+                    ? tuned.CurrentChannel == channel.ID
+                    : speakerChannels.Contains(channel.ID);
+
+                if (!loudspeaker)
+                    continue;
+            }
+            else if (!radio.ReceiveAllChannels)
             {
                 if (!radio.Channels.Contains(channel.ID))
                     continue;
@@ -207,12 +223,6 @@ public sealed partial class VoiceRadioSystem : EntitySystem
 
             if (!channel.LongRange && xform.MapID != sourceMap && !radio.GlobalReceive)
                 continue;
-
-            // A device with its speaker on plays it for everyone around (never the one transmitting, no feedback).
-            var loudspeaker = loudspeakers != null
-                              && receiver != radioSource
-                              && _speakerQuery.TryComp(receiver, out var speaker)
-                              && speaker.Enabled;
 
             ICommonSession? session = null;
             if (!loudspeaker && !TryGetListener(receiver, xform, out session))

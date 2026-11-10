@@ -804,7 +804,8 @@ public sealed partial class VoiceSystem : EntitySystem
         outgoing.Mode = VoiceReceiveMode.Loudspeaker;
         foreach (var recipient in route.Loudspeakers)
         {
-            if (!TryGetRouteVolume(recipient.Session, session, channel, out var volume))
+            // A device playing out loud is heard in the room, whatever the listener's own radio is set to.
+            if (!TryGetRouteVolume(recipient.Session, session, channel, out var volume, loudspeaker: true))
                 continue;
 
             var gain = recipient.Gain * volume;
@@ -825,13 +826,16 @@ public sealed partial class VoiceSystem : EntitySystem
     /// Whether <paramref name="listener"/> gets radio voice from <paramref name="sender"/> on this channel at all, and
     /// at what volume (their own per-player volume).
     /// </summary>
-    private bool TryGetRouteVolume(ICommonSession listener, ICommonSession sender, string channel, out float volume)
+    /// <param name="loudspeaker">Heard from a device playing it out loud (an intercom): the channels the listener
+    /// turned off are about their own radio, so they don't apply.</param>
+    private bool TryGetRouteVolume(ICommonSession listener, ICommonSession sender, string channel, out float volume,
+        bool loudspeaker = false)
     {
         volume = 0;
         if (listener.Status != SessionStatus.InGame)
             return false;
 
-        if (IsRadioChannelMuted(listener.UserId, channel))
+        if (!loudspeaker && IsRadioChannelMuted(listener.UserId, channel))
         {
             Stats.PacketsSuppressed++;
             return false;

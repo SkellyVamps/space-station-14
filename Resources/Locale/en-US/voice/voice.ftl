@@ -163,7 +163,9 @@ voice-panel-route-cant-speak = Can't speak
 voice-range-whisper = Whisper
 voice-range-talk = Talk
 voice-range-shout = Shout
-voice-panel-range-tooltip = How far your voice carries: whisper for the people next to you, shout across a room. Slide to switch; the circle around you shows how far you're heard.
+voice-range-whisper-tooltip = Whisper: only people right next to you hear you.
+voice-range-talk-tooltip = Talk: people around you hear you.
+voice-range-shout-tooltip = Shout: heard across a room and beyond.
 
 voice-panel-mute-off = Mic on
 voice-panel-mute-off-tooltip = Your microphone is on. Click to mute it.
