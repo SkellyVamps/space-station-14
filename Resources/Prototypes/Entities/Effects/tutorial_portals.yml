@@ -1,0 +1,157 @@
+# Colour-coded gateway portals for the Tutorial Station (Resources/Maps/tutorial.yml).
+# They work like the debug map's PortalGatewayBlue: each one is linked to exactly one partner.
+# One colour per department wing, so a portal's colour tells you where it leads.
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialHub
+  name: gold portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#f2d24b"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#f2d24b"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialBasics
+  name: white portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#f0f0f0"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#f0f0f0"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialCommand
+  name: blue portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#3f7fe0"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#3f7fe0"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialSecurity
+  name: red portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#e03a3a"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#e03a3a"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialEngineering
+  name: orange portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#f59a23"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#f59a23"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialScience
+  name: purple portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#a05ce0"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#a05ce0"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialMedical
+  name: cyan portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#4ad6e0"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#4ad6e0"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialCargo
+  name: brown portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#b07a3c"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#b07a3c"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialFood
+  name: green portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#5cc24a"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#5cc24a"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialCulture
+  name: pink portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#e070b8"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#e070b8"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialCivilian
+  name: grey portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#9a9a9a"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#9a9a9a"

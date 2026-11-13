@@ -50,3 +50,23 @@
   categories: [ HideSpawnMenu ]
   components:
     - type: Transform
+
+# Tutorial Station (Resources/Maps/tutorial.yml): a single-player training map.
+# No arrivals, evacuation shuttle, cargo shuttle, expeditions or random station events.
+- type: entity
+  id: TutorialNanotrasenStation
+  parent:
+    - BaseStation
+    - BaseStationNews
+    - BaseStationCargo
+    - BaseStationJobsSpawning
+    - BaseStationRecords
+    - BaseStationAlertLevels
+    - BaseStationMagnet
+    - BaseStationSalvageJobs
+    - BaseStationSiliconLawCrewsimov
+    - BaseStationNanotrasen
+    - BaseStationDeliveries
+  categories: [ HideSpawnMenu ]
+  components:
+    - type: Transform
