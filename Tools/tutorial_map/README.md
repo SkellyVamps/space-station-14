@@ -15,7 +15,6 @@ mapping editor, or your edits are lost the next time someone regenerates it.
 | `Resources/Prototypes/Entities/Effects/tutorial_portals.yml` | Colour-coded portal gateways, one colour per wing. |
 | `Content.Shared/Tutorial/TutorialRoomResetComponent.cs`, `Content.Server/Tutorial/TutorialRoomResetSystem.cs` | The room reset button. It snapshots its room on the first tick after map init, and on use deletes and respawns everything in the room except players, ghosts, portals and linked machines. |
 | `Resources/Prototypes/Entities/Structures/Wallmounts/tutorial_reset_button.yml` | The reset button prototype. The generator sets each button's room bounds. |
-| `Resources/Prototypes/Entities/Structures/Piping/Atmospherics/tutorial.yml` | A pressure pump and a freezer that start on (the freezer set to 100 K) for the cryo loop. |
 | `Resources/Prototypes/Entities/Structures/Doors/Airlocks/tutorial.yml` | The salvage dock airlock. Its `GridFill` docks `/Maps/Shuttles/mining.yml` at round start (only when `shuttle.grid_fill` is on, as it is in normal play). |
 
 ## Regenerating

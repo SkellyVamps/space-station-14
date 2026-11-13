@@ -4,7 +4,7 @@ meta:
   engineVersion: 293.0.1
   forkId: ""
   forkVersion: ""
-  time: 11/13/2026 23:48:30
+  time: 11/13/2026 23:53:32
   entityCount: 12335
 maps:
 - 1
@@ -49393,7 +49393,7 @@ entities:
       parent: 2
       rot: -1.5707963705062866 rad
       pos: 25.5,-13.5
-- proto: GasPressurePumpTutorialOn
+- proto: GasPressurePump
   entities:
   - uid: 1113
     components:
@@ -49401,7 +49401,9 @@ entities:
       parent: 2
       rot: -1.5707963705062866 rad
       pos: 24.5,-13.5
-- proto: GasThermoMachineFreezerTutorialCryo
+    - type: GasPressurePump
+      enabled: True
+- proto: GasThermoMachineFreezerEnabled
   entities:
   - uid: 1112
     components:
@@ -49409,6 +49411,8 @@ entities:
       parent: 2
       rot: 3.1415927410125732 rad
       pos: 23.5,-14.5
+    - type: GasThermoMachine
+      targetTemperature: 100
 - proto: GeneratorRTG
   entities:
   - uid: 67
@@ -52881,7 +52885,7 @@ entities:
         [bold]Solars[/bold] and [bold]TEG[/bold] (thermo-electric generator) are backups or advanced setups.
 
 
-        [bold]Practice task:[/bold] Finish the particle accelerator parts with a wrench, cables and a screwdriver.
+        [bold]Practice task:[/bold] Finish the particle accelerator parts, then suit up and start the fenced singularity demo outside.
   - uid: 640
     components:
     - type: MetaData
@@ -54142,7 +54146,7 @@ entities:
         Put a cryoxadone beaker in the pod, place the patient inside and they heal while they sleep.
 
 
-        [bold]Practice task:[/bold] Load the cryoxadone beaker into the cryo pod.
+        [bold]Practice task:[/bold] Analyze the cryo pipe until it reads below 170 K, then load the cryoxadone beaker into the pod.
   - uid: 1108
     components:
     - type: MetaData

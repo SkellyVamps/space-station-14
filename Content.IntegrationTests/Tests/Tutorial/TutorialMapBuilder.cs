@@ -15,6 +15,8 @@ using Content.Shared.Maps;
 using Content.Shared.Paper;
 using Content.Shared.Station.Components;
 using Content.Shared.Tutorial;
+using Content.Shared.Atmos.Components;
+using Content.Shared.Atmos.Piping.Unary.Components;
 using Content.Shared.Decals;
 using Content.Server.Decals;
 using Content.Shared.Teleportation.Systems;
@@ -39,7 +41,7 @@ public sealed class TutorialMapBuilder : GameTest
 {
     public override PoolSettings PoolSettings => new() { Dirty = true };
 
-    private sealed record LayoutEntity(string P, float X, float Y, float R, string? Paper, string? Name, string? Key, string? LinkTo, string? Portal, int[]? Reset, bool? Anchor);
+    private sealed record LayoutEntity(string P, float X, float Y, float R, string? Paper, string? Name, string? Key, string? LinkTo, string? Portal, int[]? Reset, bool? Anchor, bool? PumpOn, float? TargetTemperature);
 
     private sealed record LayoutDecal(string Id, float X, float Y, string? Color, float R);
 
@@ -110,6 +112,11 @@ public sealed class TutorialMapBuilder : GameTest
                     links.Add((uid, e.LinkTo));
                 if (e.Portal != null)
                     portals.Add((uid, e.Portal));
+                // Starting settings that real maps store per entity, like a pump left running.
+                if (e.PumpOn == true)
+                    entMan.GetComponent<GasPressurePumpComponent>(uid).Enabled = true;
+                if (e.TargetTemperature is { } temperature)
+                    entMan.GetComponent<GasThermoMachineComponent>(uid).TargetTemperature = temperature;
                 if (e.Anchor == true)
                     xformSys.AnchorEntity(uid);
                 if (e.Reset is { Length: 4 } r)

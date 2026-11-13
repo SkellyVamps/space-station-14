@@ -903,8 +903,8 @@ MEDICAL = [
         place=[
             ("CryoPod", 6, 4, None),  # cannot rotate: its pipe connection always faces south
             ("GasPipeFourway", 6, 3, None),
-            ("GasThermoMachineFreezerTutorialCryo", 6, 2, "up"),
-            ("GasPressurePumpTutorialOn", 7, 3, "in"),  # fills the loop to 101 kPa, then stops
+            ("GasThermoMachineFreezerEnabled", 6, 2, "up", None, None, {"targetTemperature": 100}),
+            ("GasPressurePump", 7, 3, "in", None, None, {"pumpOn": True}),  # fills the loop to 101 kPa, then stops
             ("GasPort", 8, 3, "in"),
             ("NitrogenCanister", 8, 3, None, None, None, {"anchor": True}),
         ],
