@@ -155,3 +155,31 @@
     - state: portal
   - type: PointLight
     color: "#9a9a9a"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialThreats
+  name: crimson portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#c2185b"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#c2185b"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialOutsiders
+  name: lime portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#b5e61d"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#b5e61d"

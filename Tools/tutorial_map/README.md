@@ -1,7 +1,7 @@
 # Tutorial Station generator
 
 `Resources/Maps/tutorial.yml` is a single-player training map with one room per crew job.
-It is generated. Change the room data here and regenerate rather than editing the map in the
+It has 68 rooms: every crew job, two antagonist wings, and a salvage dock with a flyable shuttle. It is generated. Change the room data here and regenerate rather than editing the map in the
 mapping editor, or your edits are lost the next time someone regenerates it.
 
 | File | What it holds |
@@ -10,9 +10,10 @@ mapping editor, or your edits are lost the next time someone regenerates it.
 | `generate.py` | Geometry: corridor, wings, walls, doors, lights, power cables, portals. Writes a layout JSON. |
 | `render.py` | Draws an overhead plan as a PNG, for checking layout changes. |
 | `Content.IntegrationTests/Tests/Tutorial/TutorialMapBuilder.cs` | Spawns the layout through the real engine, fills the air and saves the map. Explicit: it never runs in CI. |
-| `Content.IntegrationTests/Tests/Tutorial/TutorialMapTest.cs` | Regular test: power, gravity, air and portal pairs on the finished map. |
+| `Content.IntegrationTests/Tests/Tutorial/TutorialMapTest.cs` | Regular tests: power, gravity, air and portal pairs; the salvage shuttle docks at round start. |
 | `Resources/Prototypes/Maps/tutorial.yml` | The `Tutorial` game map: every job, unlimited slots. Not in any map pool. |
 | `Resources/Prototypes/Entities/Effects/tutorial_portals.yml` | Colour-coded portal gateways, one colour per wing. |
+| `Resources/Prototypes/Entities/Structures/Doors/Airlocks/tutorial.yml` | The salvage dock airlock. Its `GridFill` docks `/Maps/Shuttles/mining.yml` at round start (only when `shuttle.grid_fill` is on, as it is in normal play). |
 
 ## Regenerating
 
@@ -35,6 +36,11 @@ The builder lists every unknown entity or tile id before it spawns anything, so 
 Start a local server, open the console and run `forcemap Tutorial`, then `restartround`.
 Set the job you want as your top priority and ready up. To change job mid-round, run `respawn` and late-join as any job.
 Late joiners arrive in the Hub. The Portal Hall, through the Hub's west door, has a portal to every room.
+
+## Antagonists
+
+A one-player server never rolls antagonists, so the antagonist rooms teach each role and tell you to make yourself one:
+right-click your character, **Antag ctrl**, then **Make Traitor** (and so on). On a local server you are host admin.
 
 ## Adding a room
 

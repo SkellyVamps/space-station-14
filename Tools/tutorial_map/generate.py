@@ -97,13 +97,26 @@ room_rects = []  # (wing, title, [(x, y), (x, y)]) for render.py
 room_portals = []  # (wing index, room title, portal key) for the Portal Hall
 
 COLOUR_WORD = {"Basics": "white", "Command": "blue", "Security": "red", "Engineering": "orange", "Science": "purple",
-               "Medical": "cyan", "Cargo": "brown", "Food": "green", "Culture": "pink", "Civilian": "grey"}
+               "Medical": "cyan", "Cargo": "brown", "Food": "green", "Culture": "pink", "Civilian": "grey",
+               "Threats": "crimson", "Outsiders": "lime"}
 
 PORTAL_COLOUR = {
     "Basics Academy": "Basics", "Command": "Command", "Security": "Security", "Engineering": "Engineering",
     "Science": "Science", "Medical": "Medical", "Cargo": "Cargo", "Service: Food": "Food",
     "Service: Culture": "Culture", "Civilian": "Civilian",
+    "Antagonists: Station Threats": "Threats", "Antagonists: Outsiders": "Outsiders",
 }
+
+
+def wing_cx(i):
+    """Wings are numbered west to east separately on each side of the corridor."""
+    side = WINGS[i]["side"]
+    slot = sum(1 for w in WINGS[:i] if w["side"] == side)
+    return FIRST_WING_X + WING_SPACING * slot
+
+
+def wing_slot_count():
+    return max(sum(1 for w in WINGS if w["side"] == s) for s in ("N", "S"))
 
 
 def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
@@ -267,11 +280,12 @@ def build_eva(r):
 
 
 tiles_lv_extra = set()
+open_space = set()  # cells kept as space: never walled (outside docking airlocks)
 
 
 # ------------------------------------------------------------------ wings
 def build_wing(i, wing):
-    cx = FIRST_WING_X + WING_SPACING * (i % 5)
+    cx = wing_cx(i)
     side = wing["side"]
     rooms = wing["rooms"]
     rows = math.ceil(len(rooms) / 2)
@@ -294,11 +308,30 @@ def build_wing(i, wing):
         ent(wing["sign"], cx - 2, sgn * 2, "S" if side == "N" else "N")
     for n, spec in enumerate(rooms):
         build_room(spec, cx, side, west=(n % 2 == 0), row=n // 2, wing_name=wing["name"], wing_index=i)
+    if wing.get("dock"):
+        build_dock(wing["dock"], cx, sgn, sgn * (2 + hall_len + 1), wing["name"], i)
+
+
+def build_dock(dock, cx, sgn, y, wing_name, wing_index):
+    """A docking airlock at the far end of a hallway. Its GridFill docks a shuttle at round start."""
+    floor(cx, y, "FloorSteel")
+    ent(dock["proto"], cx, y, "S" if sgn < 0 else "N")
+    for dx in (-1, 0, 1):
+        open_space.add((cx + dx, y + sgn))  # the shuttle docks here
+    inner = y - sgn
+    ent("Table", cx + 1, inner)
+    for n, text in enumerate(dock["papers"]):
+        header = f"[italic]{wing_name} · {dock['title']} · lesson {n + 1} of {len(dock['papers'])}[/italic]\n\n"
+        paper(cx + 1, inner, header + text, name=f"lesson {n + 1}: {dock['title']}")
+    key = f"room{len(room_portals)}"
+    ent(f"PortalGatewayTutorial{PORTAL_COLOUR[wing_name]}", cx - 1, inner, key=key, name="to Portal Hall")
+    room_portals.append((wing_index, dock["title"], key))
+    summary.append((wing_name, dock["title"], [], dock))
 
 
 def build():
     # main corridor
-    corridor_end = FIRST_WING_X + WING_SPACING * 4 + 12
+    corridor_end = FIRST_WING_X + WING_SPACING * (wing_slot_count() - 1) + 12
     rect(2, -1, corridor_end, 1, "FloorSteel")
     for x in range(-11, corridor_end + 1):
         mv.add((x, 0))
@@ -330,7 +363,8 @@ def build():
     # directory papers: one per wing
     directory = "[head=2]Station directory[/head]\n\nWings, west to east along the main corridor:\n\n"
     for i, w in enumerate(WINGS):
-        directory += f"{'North' if w['side'] == 'N' else 'South'} {i % 5 + 1}: [bold]{w['name']}[/bold]\n"
+        slot = sum(1 for v in WINGS[:i] if v["side"] == w["side"]) + 1
+        directory += f"{'North' if w['side'] == 'N' else 'South'} {slot}: [bold]{w['name']}[/bold]\n"
     directory += "\nEast end: Station Power Core."
     paper(-9, 4, directory, name="station directory")
 
@@ -375,22 +409,23 @@ def build():
 
 def build_portal_hall(core_x0):
     """West of the hub: one row per wing, one colour-coded portal per room, each linked to that room."""
-    rect(-31, -11, -13, 11, "FloorDark")
+    top = 2 * len(WINGS) - 11   # first wing row; the guide row sits above it
+    rect(-31, -top - 2, -13, top + 2, "FloorDark")
     floor(-12, 0, "FloorDark")
     ent("AirlockGlass", -12, 0)
     for x in range(-31, -11):
         mv.add((x, 0))
-    for y in range(0, 13):
+    for y in range(0, top + 4):
         mv.add((-22, y))
-    ent("APCBasic", -22, 12, "S")
-    tiles_lv_extra.add((-22, 12))
+    ent("APCBasic", -22, top + 3, "S")
+    tiles_lv_extra.add((-22, top + 3))
     for x in (-27, -19):
-        ent("Poweredlight", x, 11, "S")
-        ent("Poweredlight", x, -11, "N")
+        ent("Poweredlight", x, top + 2, "S")
+        ent("Poweredlight", x, -top - 2, "N")
     ent("Poweredlight", -31, 0, "E")
 
     for i, wing in enumerate(WINGS):
-        y = 9 - 2 * i
+        y = top - 2 * i
         ent("Table", -31, y)
         paper(-31, y, f"[head=2]{wing['name']}[/head]\n\nThe {COLOUR_WORD[PORTAL_COLOUR[wing['name']]]}-coded portals in this row "
                       f"lead to the rooms of the {wing['name']} wing, in the same order as the wing's hallway. "
@@ -401,10 +436,10 @@ def build_portal_hall(core_x0):
             ent(f"PortalGatewayTutorial{PORTAL_COLOUR[wing['name']]}", -29 + 2 * k, y, portal=key, name=f"to {title}")
 
     # top row: the hub and the power core
-    ent("PortalGatewayTutorialHub", -29, 11, key="core-hall", name="to Power Core")
+    ent("PortalGatewayTutorialHub", -29, top + 2, key="core-hall", name="to Power Core")
     ent("PortalGatewayTutorialHub", core_x0 + 1, -3, portal="core-hall", name="to Portal Hall")
-    ent("Table", -31, 11)
-    paper(-31, 11, "[head=2]Portal Hall[/head]\n\nWalk into a portal to travel. Each portal's name (Shift + click to examine) says where it goes, "
+    ent("Table", -31, top + 2)
+    paper(-31, top + 2, "[head=2]Portal Hall[/head]\n\nWalk into a portal to travel. Each portal's name (Shift + click to examine) says where it goes, "
                    "and its colour matches the wing:\n\n" + "\n".join(
                        f"[bold]{COLOUR_WORD[PORTAL_COLOUR[w['name']]]}[/bold]: {w['name']}" for w in WINGS) +
                    "\n[bold]gold[/bold]: Station Power Core\n\nThe hub is through the door to the east.",
@@ -418,7 +453,7 @@ def finish():
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 c = (x + dx, y + dy)
-                if c not in indoor and c not in outdoor:
+                if c not in indoor and c not in outdoor and c not in open_space:
                     walls.add(c)
     for (x, y) in sorted(walls):
         tiles[(x, y)] = "Plating"

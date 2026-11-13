@@ -1010,7 +1010,8 @@ CARGO = [
             ),
             paper(
                 "The salvage magnet",
-                "The salvage magnet pulls in an asteroid or a wreck for a limited time. Use it, pick an offer, then fly or walk out to it.",
+                "The salvage magnet pulls in an asteroid or a wreck for a limited time. Use it, pick an offer, then fly out to it in the salvage shuttle.",
+                "The shuttle is docked at the end of the Cargo hallway. The Salvage Dock papers there teach you to fly it.",
                 "Bring everything back before the time runs out: the wreck drifts away when it does.",
             ),
             paper(
@@ -1321,6 +1322,284 @@ CIVILIAN = [
     ),
 ]
 
+# ---------------------------------------------------------------- Antagonists
+# You cannot be rolled as an antagonist on a one-player server, so each room shows you how to make
+# yourself one with the admin "Antag ctrl" verbs (on a local server you are host admin).
+
+def antag_how(verb):
+    return paper(
+        "Becoming this antagonist here",
+        "On a real server antagonists are picked at random when the round starts. Here you make yourself one.",
+        f"Right-click your own character, open the [bold]Antag ctrl[/bold] menu and choose [bold]{verb}[/bold]. "
+        "You get the real role: gear, abilities and objectives.",
+        "Press [bold]U[/bold] (character menu) to read your objectives. To go back to being crew, run [bold]respawn[/bold].",
+        "On a real server, read the server's rules on antagonists first. Most limit how much damage you may do and to whom.",
+    )
+
+
+THREATS = [
+    dict(
+        title="Traitor",
+        floor="FloorDark",
+        door="AirlockGlass",
+        place=[("TargetSyndicate", 8, 1, None), ("TargetHuman", 8, 5, None)],
+        table=["PaperBin10", "Pen", "ClothingHandsGlovesColorBlack"],
+        papers=[
+            paper(
+                "Traitor: your goal",
+                "A traitor is a normal crew member secretly working for the Syndicate. You keep your job, your access and your cover.",
+                "You get a list of objectives: steal an item, kill or protect someone, escape alive. Complete them without getting caught.",
+            ),
+            paper(
+                "Your uplink",
+                "Your PDA hides a Syndicate uplink. Open the PDA's ringtone menu and enter the code shown in your character menu (U) to unlock it.",
+                "The uplink sells gear for telecrystals (TC): weapons, stealth tools, implants. Buy what your objectives need, not everything.",
+                "Other traitors may exist. Code words, shown with your objectives, help you find each other in chat.",
+            ),
+            antag_how("Make Traitor"),
+        ],
+    ),
+    dict(
+        title="Thief",
+        floor="FloorDark",
+        door="AirlockGlass",
+        table=["CaptainIDCard", "BikeHorn", "ClothingHeadHatHardhatYellow"],
+        papers=[
+            paper(
+                "Thief: your goal",
+                "A thief steals things the station values and stashes them. Thieves are not meant to kill.",
+                "Your objectives list items, animals or collections to take. Bring them to your stash beacon before the round ends.",
+            ),
+            paper(
+                "Your tools",
+                "You start with a toolbox of thieving gear you choose at the start, and thieving gloves that let you take things from pockets quietly.",
+                "Practise on the table: pick up each item without anyone noticing. On a real station, be quick and stay out of sight.",
+            ),
+            antag_how("Make Thief"),
+        ],
+    ),
+    dict(
+        title="Changeling",
+        floor="FloorDark",
+        door="AirlockGlass",
+        floor_items=["MobMonkey", "MobMonkey"],
+        papers=[
+            paper(
+                "Changeling: your goal",
+                "A changeling is an alien that looks like a crew member. It can steal other people's appearance and identity.",
+                "Your abilities are in your action bar. Examine each one (hover or right-click it) to read what it does and what it costs.",
+            ),
+            paper(
+                "Staying hidden",
+                "Changelings win by blending in. Take on a victim's identity, then act like them.",
+                "The monkeys in this room are safe practice targets for your abilities.",
+            ),
+            antag_how("Make Changeling"),
+        ],
+    ),
+    dict(
+        title="Head Revolutionary",
+        floor="FloorDark",
+        door="AirlockGlass",
+        table=["Flash", "Flash"],
+        papers=[
+            paper(
+                "Revolutionaries: your goal",
+                "Head revolutionaries lead an uprising against Command. The revolution wins when every head of staff is dead, captured or off the station.",
+                "Head revs convert crew by flashing them with a flash. Converted crew become revolutionaries who follow the heads.",
+            ),
+            paper(
+                "How it ends",
+                "Crew with a mindshield implant cannot be converted. Security usually has one.",
+                "If every head revolutionary dies, the revolution fails and the converted crew return to normal.",
+                "Conversion needs other players, so on this map you can only practise moving and flashing. Flash the dummies on the firing range in Security.",
+            ),
+            antag_how("Make Head Rev"),
+        ],
+    ),
+    dict(
+        title="Zombies",
+        floor="FloorDark",
+        door="AirlockGlass",
+        floor_items=["MobMonkey", "MobMonkey"],
+        papers=[
+            paper(
+                "Initial Infected: your goal",
+                "Initial Infected carry a zombie virus. After a while, or when you choose to, you turn into a zombie.",
+                "Zombies win by spreading the infection: bite living crew and they turn too. The crew wins by surviving and escaping.",
+            ),
+            paper(
+                "Playing a zombie",
+                "Zombies are tough and slow, and heal over time. Bite with an empty hand in combat mode.",
+                "Try it: become a zombie with the verb below and bite the monkeys. Use [bold]Make Initial Infected[/bold] to try the slow version.",
+            ),
+            antag_how("Make Zombie"),
+        ],
+    ),
+    dict(
+        title="Paradox Clone",
+        floor="FloorDark",
+        door="AirlockGlass",
+        papers=[
+            paper(
+                "Paradox Clone: your goal",
+                "A paradox clone is a copy of a real crew member from another timeline. The clone's goal is to kill the original and take their place.",
+                "The clone gets the original's look, job gear and memories. Nobody can tell you apart until one of you slips up.",
+            ),
+            paper(
+                "Trying it alone",
+                "The admin verb creates a clone of a target as a ghost role. To play it yourself: right-click your character, Antag ctrl, "
+                "[bold]Create Paradox Clone[/bold]. Then type [bold]ghost[/bold] in the console and take the role from the Ghost Roles menu.",
+                "You end up as the clone, standing beside your old, empty body.",
+            ),
+        ],
+    ),
+]
+
+OUTSIDERS = [
+    dict(
+        title="Nuclear Operative",
+        floor="FloorDark",
+        door="AirlockGlass",
+        place=[("NuclearBomb", 7, 3, None)],
+        papers=[
+            paper(
+                "Nuclear Operatives: your goal",
+                "Nuclear operatives are a Syndicate strike team. They fly to the station, take the nuclear authentication disk and blow the station up with its own nuke.",
+                "The disk is carried by the Captain. On this map it is in the Captain's locker in the Captain's Office (Command wing).",
+            ),
+            paper(
+                "The nuke",
+                "This is a real station nuke. Insert the disk, enter the code, arm it and defend it until it goes off. Crew can disarm it with the disk.",
+                "Setting it off ends the round. Run restartround to try again.",
+            ),
+            antag_how("Make Nuclear Operative"),
+        ],
+    ),
+    dict(
+        title="Space Ninja",
+        floor="FloorDark",
+        door="AirlockGlass",
+        place=[("TargetHuman", 8, 3, None)],
+        papers=[
+            paper(
+                "Space Ninja: your goal",
+                "The Spider Clan's ninja is a stealthy outsider with a powered suit. Objectives include hacking doors and consoles, stealing research and assassination.",
+                "Your suit's abilities are in your action bar. Your gloves interact with machines in special ways: use them on doors, APCs and consoles.",
+            ),
+            paper(
+                "Power",
+                "Your suit runs on a power cell. Recharge it by draining APCs, SMES units or batteries with your gloves.",
+                "The Electrical Workshop and Power Core are good places to practise.",
+            ),
+            antag_how("Make Ninja"),
+        ],
+    ),
+    dict(
+        title="Wizard",
+        floor="FloorDark",
+        door="AirlockGlass",
+        papers=[
+            paper(
+                "Wizard: your goal",
+                "A Wizard Federation wizard arrives with a spellbook and causes magical chaos. Objectives vary from round to round.",
+                "Buy spells from your spellbook. Some need your robe and hat on to cast. Spells appear in your action bar and recharge after use.",
+            ),
+            paper(
+                "Practice",
+                "Become a wizard with the verb below, open the spellbook and try one spell at a time. The Firing Range in Security has targets.",
+            ),
+            antag_how("Make Wizard"),
+        ],
+    ),
+    dict(
+        title="Pirate",
+        floor="FloorDark",
+        door="AirlockGlass",
+        papers=[
+            paper(
+                "Pirates: your goal",
+                "Pirates raid the station for loot and credits. They usually arrive in their own ship and leave with what they can carry.",
+                "Pirates are a ghost-role or admin event. The admin verb gives you the pirate's gear but does not start a full pirate event.",
+            ),
+            antag_how("Make Pirate"),
+        ],
+    ),
+    dict(
+        title="Spotting Antagonists (for crew)",
+        floor="FloorDark",
+        door="AirlockSecurityGlass",
+        table=["BookSpaceLaw"],
+        papers=[
+            paper(
+                "Signs of trouble",
+                "Missing items, bodies, unexplained breaches, people in strange gear, doors opening by themselves and odd announcements are all signs of an antagonist.",
+                "Report what you see on the Security channel (:s) or Common (;). Say where, when and who.",
+            ),
+            paper(
+                "What to do",
+                "Crew are not Security. Get away from danger, warn others and help the injured. Leave arrests to Security.",
+                "Security: follow Space Law, cuff and question suspects, and take dangerous gear as evidence.",
+            ),
+        ],
+    ),
+    dict(
+        title="Other Threats",
+        floor="FloorDark",
+        door="AirlockGlass",
+        papers=[
+            paper(
+                "Midround threats",
+                "Some threats appear during the round as ghost roles or events: space dragons, carp swarms, xenoborgs, rat kings and more.",
+                "Ghosts can sign up for these from the Ghost Roles menu when an event offers them.",
+            ),
+            paper(
+                "Trying them here",
+                "As an admin you can spawn these creatures (F5 opens the entity spawner) and take control of one with the [bold]Control mob[/bold] verb, "
+                "or trigger events from the admin menu (F7).",
+                "Be careful: some events affect the whole station. Run restartround if things get out of hand.",
+            ),
+        ],
+    ),
+]
+
+ANTAG_TASKS = {
+    "Traitor": "Make yourself a traitor, unlock your PDA uplink and read your objectives.",
+    "Thief": "Make yourself a thief, choose a thieving kit and pocket every item on the table.",
+    "Changeling": "Make yourself a changeling and read every ability in your action bar.",
+    "Head Revolutionary": "Make yourself a head revolutionary and read your objectives.",
+    "Zombies": "Make yourself a zombie and bite both monkeys.",
+    "Paradox Clone": "Create a paradox clone of yourself and play as it from the Ghost Roles menu.",
+    "Nuclear Operative": "Make yourself a nuclear operative, fetch the disk from the Captain's Office and arm the nuke.",
+    "Space Ninja": "Make yourself a ninja and drain an APC with your gloves.",
+    "Wizard": "Make yourself a wizard, buy a spell and cast it at a target.",
+    "Pirate": "Make yourself a pirate and read your objectives.",
+    "Spotting Antagonists (for crew)": "Find the punishment for murder in Space Law.",
+    "Other Threats": "Spawn a space carp with F5 and take control of it.",
+}
+
+SALVAGE_DOCK_PAPERS = [
+    paper(
+        "The salvage shuttle",
+        "A mining shuttle is docked through this airlock. Salvage Specialists fly it out to wrecks and asteroids pulled in by the salvage magnet.",
+        "Walk through the airlock, sit in the pilot's chair and click the shuttle console.",
+    ),
+    paper(
+        "Flying",
+        "With the shuttle console open: [bold]W A S D[/bold] fly forward, left, back and right. [bold]Q[/bold] and [bold]E[/bold] rotate. "
+        "[bold]Space[/bold] brakes.",
+        "The radar shows nearby grids. Fly slowly near the station. Ramming it damages both.",
+        "To leave, undock first: the docking panel on the console lists the docks. Then fly away.",
+    ),
+    paper(
+        "Docking back",
+        "Fly back so your shuttle's airlock lines up with this dock, then use the console's docking panel to dock. Close to the dock, it pulls you in.",
+        "Before a trip: check the shuttle's generator is fuelled, take a hardsuit and internals, and tell Cargo where you are going.",
+        "[bold]Practice task:[/bold] undock, fly a lap around the Cargo wing, and dock again.",
+    ),
+]
+
+
 # ---------------------------------------------------------------- Wings
 # side: "N" north of the main corridor, "S" south.
 WINGS = [
@@ -1329,11 +1608,14 @@ WINGS = [
     dict(name="Security", side="N", rooms=SECURITY, sign="SignSecurity"),
     dict(name="Engineering", side="N", rooms=ENGINEERING, sign="SignEngineering"),
     dict(name="Science", side="N", rooms=SCIENCE, sign="SignScience"),
+    dict(name="Antagonists: Station Threats", side="N", rooms=THREATS, sign=None),
     dict(name="Medical", side="S", rooms=MEDICAL, sign="SignMedical"),
-    dict(name="Cargo", side="S", rooms=CARGO, sign="SignCargo"),
+    dict(name="Cargo", side="S", rooms=CARGO, sign="SignCargo",
+         dock=dict(title="Salvage Dock", proto="AirlockExternalGlassShuttleTutorialSalvage", papers=SALVAGE_DOCK_PAPERS)),
     dict(name="Service: Food", side="S", rooms=FOOD, sign="SignBar"),
     dict(name="Service: Culture", side="S", rooms=CULTURE, sign="SignLibrary"),
     dict(name="Civilian", side="S", rooms=CIVILIAN, sign=None),
+    dict(name="Antagonists: Outsiders", side="S", rooms=OUTSIDERS, sign=None),
 ]
 
 # ---------------------------------------------------------------- practice tasks
@@ -1395,3 +1677,5 @@ TASKS = {
     "Newsroom (Reporter)": "Publish an article about your first day on the Tutorial Station.",
     "Arcade": "Beat the arcade machine.",
 }
+
+TASKS.update(ANTAG_TASKS)

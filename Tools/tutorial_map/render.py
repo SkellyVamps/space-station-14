@@ -9,7 +9,8 @@ g.build()
 g.finish()
 
 HEX = {"Basics": "#e8e8e8", "Command": "#3f7fe0", "Security": "#e03a3a", "Engineering": "#f59a23", "Science": "#a05ce0",
-       "Medical": "#4ad6e0", "Cargo": "#b07a3c", "Food": "#5cc24a", "Culture": "#e070b8", "Civilian": "#9a9a9a", "Hub": "#f2d24b"}
+       "Medical": "#4ad6e0", "Cargo": "#b07a3c", "Food": "#5cc24a", "Culture": "#e070b8", "Civilian": "#9a9a9a", "Hub": "#f2d24b",
+       "Threats": "#c2185b", "Outsiders": "#b5e61d"}
 S = 9
 xs = [x for x, _ in g.tiles]; ys = [y for _, y in g.tiles]
 x0, x1, y0, y1 = min(xs) - 2, max(xs) + 2, min(ys) - 6, max(ys) + 6
@@ -52,11 +53,11 @@ try:
 except OSError:
     font = ImageFont.load_default()
 for i, w in enumerate(g.WINGS):
-    cx = g.FIRST_WING_X + g.WING_SPACING * (i % 5)
+    cx = g.wing_cx(i)
     y = max(ys) + 3 if w["side"] == "N" else min(ys) - 2
     px, py = P(cx, y)
     d.text((px, py), w["name"], fill=HEX[g.PORTAL_COLOUR[w["name"]]], font=font, anchor="mm")
-for label, (x, y) in {"Hub": (-5, 7.5), "Portal Hall": (-22, 13.5), "Power Core": (128, 6.5)}.items():
+for label, (x, y) in {"Hub": (-5, 7.5), "Portal Hall": (-22, 2 * len(g.WINGS) - 6.5), "Power Core": (max(xs) - 5, 6.5)}.items():
     px, py = P(x, y)
     d.text((px, py), label, fill="#f2d24b", font=font, anchor="mm")
 img.save(sys.argv[1])

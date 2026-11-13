@@ -5,6 +5,8 @@ using Content.IntegrationTests.Fixtures.Attributes;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.GameTicking;
 using Content.Server.Power.Components;
+using Content.Server.Shuttles.Components;
+using Content.Shared.Shuttles.Components;
 using Content.Shared.CCVar;
 using Content.Shared.Gravity;
 using Content.Shared.Maps;
@@ -97,6 +99,48 @@ public sealed class TutorialMapTest : GameTest
             }
 
             Assert.That(count, Is.GreaterThanOrEqualTo(100), "Expected a portal pair for every room.");
+        });
+    }
+
+    /// <summary>
+    /// The salvage dock's GridFill docks the mining shuttle at round start, so salvage players have a ship to fly.
+    /// </summary>
+    [Test]
+    [EnsureCVar(Side.Server, typeof(CCVars), nameof(CCVars.GridFill), true)]
+    public async Task SalvageShuttleDocks()
+    {
+        var server = Pair.Server;
+        var entMan = server.ResolveDependency<IEntityManager>();
+        var protoMan = server.ResolveDependency<IPrototypeManager>();
+        var ticker = entMan.System<ServerGameTicker>();
+
+        await server.WaitPost(() =>
+        {
+            var opts = DeserializationOptions.Default with { InitializeMaps = true };
+            ticker.LoadGameMap(protoMan.Index<GameMapPrototype>("Tutorial"), out _, opts);
+        });
+
+        await Pair.RunTicksSync(10);
+
+        await server.WaitAssertion(() =>
+        {
+            var dockQuery = entMan.EntityQueryEnumerator<GridFillComponent, DockingComponent, MetaDataComponent>();
+            Assert.That(dockQuery.MoveNext(out _, out _, out var dock, out var meta), "The salvage dock is missing.");
+            Assert.That(meta.EntityPrototype?.ID, Is.EqualTo("AirlockExternalGlassShuttleTutorialSalvage"));
+            Assert.That(dock.Docked, "The salvage shuttle did not dock at round start.");
+
+            var shuttle = entMan.GetComponent<TransformComponent>(dock.DockedWith!.Value).GridUid!.Value;
+            Assert.That(entMan.HasComponent<ShuttleComponent>(shuttle), "The docked grid is not a shuttle.");
+
+            var consoles = 0;
+            var consoleQuery = entMan.EntityQueryEnumerator<ShuttleConsoleComponent, TransformComponent>();
+            while (consoleQuery.MoveNext(out _, out _, out var xform))
+            {
+                if (xform.GridUid == shuttle)
+                    consoles++;
+            }
+
+            Assert.That(consoles, Is.GreaterThan(0), "The salvage shuttle has no pilot console.");
         });
     }
 }

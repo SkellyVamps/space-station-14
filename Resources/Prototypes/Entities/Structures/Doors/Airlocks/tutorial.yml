@@ -1,0 +1,16 @@
+# Tutorial Station (Resources/Maps/tutorial.yml): a docking airlock that brings its own salvage shuttle.
+# At round start GridFill docks the mining shuttle here, so salvage players can learn to fly.
+- type: entity
+  parent: AirlockGlassShuttle
+  id: AirlockExternalGlassShuttleTutorialSalvage
+  suffix: External, Salvage Shuttle, Docking, Glass, Tutorial
+  components:
+  - type: GridFill
+    path: /Maps/Shuttles/mining.yml
+  - type: ContainerFill
+    containers:
+      board: [ DoorElectronicsExternal ]
+  - type: Docking
+    radarColor: "#FFFF9F"
+    highlightedRadarColor: LightYellow
+    dockLegendCategory: Cargo
