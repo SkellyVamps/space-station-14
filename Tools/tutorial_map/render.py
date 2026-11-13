@@ -10,7 +10,7 @@ g.finish()
 
 HEX = {"Basics": "#e8e8e8", "Command": "#3f7fe0", "Security": "#e03a3a", "Engineering": "#f59a23", "Science": "#a05ce0",
        "Medical": "#4ad6e0", "Cargo": "#b07a3c", "Food": "#5cc24a", "Culture": "#e070b8", "Civilian": "#9a9a9a", "Hub": "#f2d24b",
-       "Threats": "#c2185b", "Outsiders": "#b5e61d"}
+       "Threats": "#c2185b", "Outsiders": "#b5e61d", "Awareness": "#1fa39a"}
 S = 9
 xs = [x for x, _ in g.tiles]; ys = [y for _, y in g.tiles]
 x0, x1, y0, y1 = min(xs) - 2, max(xs) + 2, min(ys) - 6, max(ys) + 6
@@ -47,6 +47,11 @@ for e in g.ents:
         d.ellipse([px + 1, py + 1, px + S - 2, py + S - 2], fill=HEX[e["p"].replace("PortalGatewayTutorial", "")])
     elif e["p"].startswith("Airlock"):
         cell(x, y, "#c9d1d9")
+    elif e["p"] == "ReinforcedWindow":
+        cell(x, y, "#7fb8d8")
+    elif e["p"] == "TutorialRoomResetButton":
+        px, py = P(x, y)
+        d.rectangle([px + 2, py + 2, px + S - 3, py + S - 3], fill="#ffd060")
 
 try:
     font = ImageFont.truetype("DejaVuSans-Bold.ttf", 15)

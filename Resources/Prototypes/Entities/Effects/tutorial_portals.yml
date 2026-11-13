@@ -183,3 +183,17 @@
     - state: portal
   - type: PointLight
     color: "#b5e61d"
+
+- type: entity
+  parent: BasePortalGateway
+  id: PortalGatewayTutorialAwareness
+  name: teal portal
+  suffix: Tutorial
+  description: A stable portal. Its label says where it leads.
+  components:
+  - type: Sprite
+    color: "#1fa39a"
+    layers:
+    - state: portal
+  - type: PointLight
+    color: "#1fa39a"

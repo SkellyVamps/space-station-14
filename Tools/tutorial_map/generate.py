@@ -31,6 +31,9 @@ tiles = {}       # (x, y) -> tile id, floors only (walls get plating later)
 indoor = set()   # floor cells inside the airtight hull
 outdoor = set()  # floor cells outside (EVA catwalk)
 ents = []
+decals = []        # {"id", "x", "y", "color", "r"}: placed by the builder through DecalSystem
+window_cells = set()   # wall cells that become a grille and reinforced window
+wallmount_cells = set()  # wall cells with something mounted on them: never a window
 lv_skip = set()  # cells kept off the station's LV network
 mv = set()
 hv = set()
@@ -98,13 +101,19 @@ room_portals = []  # (wing index, room title, portal key) for the Portal Hall
 
 COLOUR_WORD = {"Basics": "white", "Command": "blue", "Security": "red", "Engineering": "orange", "Science": "purple",
                "Medical": "cyan", "Cargo": "brown", "Food": "green", "Culture": "pink", "Civilian": "grey",
-               "Threats": "crimson", "Outsiders": "lime"}
+               "Threats": "crimson", "Outsiders": "lime", "Awareness": "teal"}
+
+# Portal and decal colour per wing key (matches Resources/Prototypes/Entities/Effects/tutorial_portals.yml).
+WING_HEX = {"Basics": "#f0f0f0", "Command": "#3f7fe0", "Security": "#e03a3a", "Engineering": "#f59a23",
+            "Science": "#a05ce0", "Medical": "#4ad6e0", "Cargo": "#b07a3c", "Food": "#5cc24a", "Culture": "#e070b8",
+            "Civilian": "#9a9a9a", "Threats": "#c2185b", "Outsiders": "#b5e61d", "Awareness": "#1fa39a"}
 
 PORTAL_COLOUR = {
     "Basics Academy": "Basics", "Command": "Command", "Security": "Security", "Engineering": "Engineering",
     "Science": "Science", "Medical": "Medical", "Cargo": "Cargo", "Service: Food": "Food",
     "Service: Culture": "Culture", "Civilian": "Civilian",
     "Antagonists: Station Threats": "Threats", "Antagonists: Outsiders": "Outsiders",
+    "Antagonist Awareness": "Awareness",
 }
 
 
@@ -159,6 +168,7 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
         ent("CableApcExtension", px, py)
     else:
         ent("APCBasic", ax, ay, r.facing("out"))
+        wallmount_cells.add((ax, ay))
         for x in range(min(ax, cx), max(ax, cx) + 1):
             mv.add((x, ay))
         tiles_lv_extra.add((ax, ay))
@@ -225,6 +235,7 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
             # mounted on the wall tile itself
             du, dv = {"in": (1, 0), "down": (0, 1), "up": (0, -1)}[f]
             x, y = r.xy(u + du, v + dv)
+            wallmount_cells.add((x, y))
         ent(proto, x, y, r.facing(f))
         if not wallmount:
             used.add((u, v))
@@ -248,6 +259,35 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
         u, v = free.pop(0)
         x, y = r.xy(u, v)
         ent(proto, x, y)
+
+    # reset button on the hallway wall, beside the door
+    bx, by = r.xy(-1, 4)
+    (x0, y0), (x1, y1) = r.xy(0, 0), r.xy(ROOM_W - 1, ROOM_H - 1)
+    ent("TutorialRoomResetButton", bx, by, r.facing("out"),
+        reset=[min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)])
+    wallmount_cells.add((bx, by))
+
+    # windows: two panes onto the hallway, and five onto the main corridor for the first row
+    for v in (1, 2):
+        window_cells.add(r.xy(-1, v))
+    if row == 0:
+        v = -1 if side == "N" else ROOM_H
+        for u in range(2, 7):
+            window_cells.add(r.xy(u, v))
+
+    # a coloured trim around the floor, in the wing's colour
+    colour = WING_HEX[PORTAL_COLOUR[wing_name]] + "99"
+    for u in range(ROOM_W):
+        for v in range(ROOM_H):
+            x, y = r.xy(u, v)
+            edges = {"W": x == min(x0, x1), "E": x == max(x0, x1), "S": y == min(y0, y1), "N": y == max(y0, y1)}
+            corner = "".join(k for k in ("N", "S") if edges[k]) + "".join(k for k in ("E", "W") if edges[k]).lower()
+            if len(corner) == 2:
+                decals.append({"id": f"BrickTileWhiteCorner{corner[0]}{corner[1]}", "x": x, "y": y, "color": colour, "r": 0})
+            else:
+                for k, hit in edges.items():
+                    if hit:
+                        decals.append({"id": f"BrickTileWhiteLine{k}", "x": x, "y": y, "color": colour, "r": 0})
 
     if spec.get("eva"):
         build_eva(r)
@@ -459,6 +499,10 @@ def finish():
         tiles[(x, y)] = "Plating"
         exterior = any((x + dx, y + dy) not in indoor and (x + dx, y + dy) not in walls
                        for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+        if (x, y) in window_cells and (x, y) not in wallmount_cells:
+            ent("Grille", x, y)
+            ent("ReinforcedWindow", x, y)
+            continue
         ent("WallReinforced" if exterior else "WallSolid", x, y)
 
     # cables. HV and MV only where planned; LV under every indoor floor + APC tiles.
@@ -486,6 +530,7 @@ if __name__ == "__main__":
         "gridName": "Tutorial Station",
         "tiles": [[x, y, t] for (x, y), t in sorted(tiles.items())],
         "ents": ents,
+        "decals": decals,
     }
     with open(sys.argv[1], "w") as f:
         json.dump(out, f)

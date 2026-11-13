@@ -12,6 +12,9 @@ using Content.Shared.Gravity;
 using Content.Shared.Maps;
 using Content.Shared.Paper;
 using Content.Shared.Teleportation.Components;
+using Content.Shared.Tutorial;
+using Content.Server.Tutorial;
+using Robust.Shared.Maths;
 using Robust.Shared.EntitySerialization;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
@@ -141,6 +144,75 @@ public sealed class TutorialMapTest : GameTest
             }
 
             Assert.That(consoles, Is.GreaterThan(0), "The salvage shuttle has no pilot console.");
+        });
+    }
+
+    /// <summary>
+    /// Mess up a room, press its reset button, and check it comes back: the lesson papers, the floor,
+    /// and nothing extra left behind.
+    /// </summary>
+    [Test]
+    [EnsureCVar(Side.Server, typeof(CCVars), nameof(CCVars.GridFill), false)]
+    public async Task RoomResetRestoresRoom()
+    {
+        var server = Pair.Server;
+        var entMan = server.ResolveDependency<IEntityManager>();
+        var protoMan = server.ResolveDependency<IPrototypeManager>();
+        var tileDefs = server.ResolveDependency<ITileDefinitionManager>();
+        var ticker = entMan.System<ServerGameTicker>();
+        var mapSys = entMan.System<SharedMapSystem>();
+        var resetSys = entMan.System<TutorialRoomResetSystem>();
+
+        var mapId = MapId.Nullspace;
+        await server.WaitPost(() =>
+        {
+            var opts = DeserializationOptions.Default with { InitializeMaps = true };
+            ticker.LoadGameMap(protoMan.Index<GameMapPrototype>("Tutorial"), out mapId, opts);
+        });
+
+        await Pair.RunTicksSync(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var grid = mapSys.GetAllGrids(mapId).Single();
+
+            // Every room has a button, and every button took its snapshot.
+            var buttons = new List<Entity<TutorialRoomResetComponent>>();
+            var query = entMan.EntityQueryEnumerator<TutorialRoomResetComponent>();
+            while (query.MoveNext(out var uid, out var comp))
+            {
+                buttons.Add((uid, comp));
+                Assert.That(comp.Snapshot, Is.Not.Null.And.Not.Empty, $"Reset button {uid} has no snapshot.");
+            }
+
+            Assert.That(buttons, Has.Count.GreaterThanOrEqualTo(70));
+
+            var button = buttons.First(b => b.Comp.Snapshot!.Any(e => e.PaperContent != null));
+            var bounds = button.Comp.Bounds;
+            int CountPapers() => entMan.EntityQuery<PaperComponent, TransformComponent>()
+                .Count(p => p.Item2.GridUid == grid.Owner && bounds.Contains(p.Item2.LocalPosition));
+
+            var papers = CountPapers();
+            var corner = new Vector2i((int) bounds.Left, (int) bounds.Bottom);
+            var originalTile = mapSys.GetTileRef(grid, corner).Tile.TypeId;
+
+            // Make a mess: burn the papers, strip a floor tile, drop some junk.
+            foreach (var (uid, paper, xform) in entMan.EntityQuery<PaperComponent, TransformComponent>(true)
+                         .Select(p => (p.Item1.Owner, p.Item1, p.Item2)).ToList())
+            {
+                if (xform.GridUid == grid.Owner && bounds.Contains(xform.LocalPosition))
+                    entMan.DeleteEntity(uid);
+            }
+
+            mapSys.SetTile(grid, corner, new Tile(tileDefs["Plating"].TileId));
+            var junk = entMan.SpawnEntity("TrashBananaPeel", new EntityCoordinates(grid, bounds.Center));
+            Assert.That(CountPapers(), Is.Zero);
+
+            resetSys.ResetRoom(button);
+
+            Assert.That(entMan.Deleted(junk) || entMan.IsQueuedForDeletion(junk), "Junk survived the reset.");
+            Assert.That(mapSys.GetTileRef(grid, corner).Tile.TypeId, Is.EqualTo(originalTile), "The floor was not restored.");
+            Assert.That(CountPapers(), Is.EqualTo(papers), "The lesson papers were not restored.");
         });
     }
 }

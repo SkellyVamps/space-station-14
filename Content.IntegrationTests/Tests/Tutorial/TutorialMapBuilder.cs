@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,6 +14,9 @@ using Content.Shared.Gravity;
 using Content.Shared.Maps;
 using Content.Shared.Paper;
 using Content.Shared.Station.Components;
+using Content.Shared.Tutorial;
+using Content.Shared.Decals;
+using Content.Server.Decals;
 using Content.Shared.Teleportation.Systems;
 using Robust.Shared.EntitySerialization.Systems;
 using Robust.Shared.GameObjects;
@@ -35,9 +39,11 @@ public sealed class TutorialMapBuilder : GameTest
 {
     public override PoolSettings PoolSettings => new() { Dirty = true };
 
-    private sealed record LayoutEntity(string P, float X, float Y, float R, string? Paper, string? Name, string? Key, string? LinkTo, string? Portal);
+    private sealed record LayoutEntity(string P, float X, float Y, float R, string? Paper, string? Name, string? Key, string? LinkTo, string? Portal, int[]? Reset);
 
-    private sealed record Layout(string StationId, string GridName, List<List<JsonElement>> Tiles, List<LayoutEntity> Ents);
+    private sealed record LayoutDecal(string Id, float X, float Y, string? Color, float R);
+
+    private sealed record Layout(string StationId, string GridName, List<List<JsonElement>> Tiles, List<LayoutEntity> Ents, List<LayoutDecal>? Decals);
 
     [Test]
     [EnsureCVar(Side.Server, typeof(CCVars), nameof(CCVars.GridFill), false)]
@@ -62,6 +68,7 @@ public sealed class TutorialMapBuilder : GameTest
         var atmosSys = entMan.System<AtmosphereSystem>();
         var metaSys = entMan.System<MetaDataSystem>();
         var loader = entMan.System<MapLoaderSystem>();
+        var decalSys = entMan.System<DecalSystem>();
         var linkSys = entMan.System<DeviceLinkSystem>();
         var portalLinkSys = entMan.System<LinkedEntitySystem>();
 
@@ -70,6 +77,8 @@ public sealed class TutorialMapBuilder : GameTest
         var unknownTiles = layout.Tiles.Select(t => t[2].GetString()!).Distinct().Where(t => !tileDefs.TryGetDefinition(t, out _)).ToList();
         Assert.That(unknown, Is.Empty, $"Unknown entity prototypes: {string.Join(", ", unknown)}");
         Assert.That(unknownTiles, Is.Empty, $"Unknown tiles: {string.Join(", ", unknownTiles)}");
+        var unknownDecals = (layout.Decals ?? new()).Select(d => d.Id).Distinct().Where(d => !protoMan.HasIndex<DecalPrototype>(d)).ToList();
+        Assert.That(unknownDecals, Is.Empty, $"Unknown decals: {string.Join(", ", unknownDecals)}");
 
         await server.WaitAssertion(() =>
         {
@@ -101,6 +110,8 @@ public sealed class TutorialMapBuilder : GameTest
                     links.Add((uid, e.LinkTo));
                 if (e.Portal != null)
                     portals.Add((uid, e.Portal));
+                if (e.Reset is { Length: 4 } r)
+                    entMan.GetComponent<TutorialRoomResetComponent>(uid).Bounds = new Box2(r[0], r[1], r[2] + 1, r[3] + 1);
             }
 
             // Consoles such as cargo orders or artifact analysis only work when linked to their machine.
@@ -108,6 +119,13 @@ public sealed class TutorialMapBuilder : GameTest
             {
                 Assert.That(keyed.ContainsKey(sink), $"Link target {sink} was never spawned.");
                 linkSys.LinkDefaults(null, source, keyed[sink]);
+            }
+
+            foreach (var d in layout.Decals ?? new())
+            {
+                var color = d.Color != null ? Color.FromHex(d.Color) : (Color?) null;
+                Assert.That(decalSys.TryAddDecal(d.Id, new EntityCoordinates(grid, new Vector2(d.X, d.Y)), out _, color, new Angle(d.R), cleanable: true),
+                    $"Could not place decal {d.Id} at {d.X},{d.Y}.");
             }
 
             // Portal pairs, linked both ways like the debug map's gateways.

@@ -1526,24 +1526,6 @@ OUTSIDERS = [
         ],
     ),
     dict(
-        title="Spotting Antagonists (for crew)",
-        floor="FloorDark",
-        door="AirlockSecurityGlass",
-        table=["BookSpaceLaw"],
-        papers=[
-            paper(
-                "Signs of trouble",
-                "Missing items, bodies, unexplained breaches, people in strange gear, doors opening by themselves and odd announcements are all signs of an antagonist.",
-                "Report what you see on the Security channel (:s) or Common (;). Say where, when and who.",
-            ),
-            paper(
-                "What to do",
-                "Crew are not Security. Get away from danger, warn others and help the injured. Leave arrests to Security.",
-                "Security: follow Space Law, cuff and question suspects, and take dangerous gear as evidence.",
-            ),
-        ],
-    ),
-    dict(
         title="Other Threats",
         floor="FloorDark",
         door="AirlockGlass",
@@ -1600,6 +1582,182 @@ SALVAGE_DOCK_PAPERS = [
 ]
 
 
+# ---------------------------------------------------------------- Antagonist awareness (crew side)
+AWARENESS = [
+    dict(
+        title="Spotting Antagonists (for crew)",
+        floor="FloorDark",
+        door="AirlockSecurityGlass",
+        table=["BookSpaceLaw"],
+        papers=[
+            paper(
+                "Signs of trouble",
+                "Missing items, bodies, unexplained breaches, people in strange gear, doors opening by themselves and odd announcements are all signs of an antagonist.",
+                "Report what you see on the Security channel (:s) or Common (;). Say where, when and who.",
+            ),
+            paper(
+                "What to do",
+                "Crew are not Security. Get away from danger, warn others and help the injured. Leave arrests to Security.",
+                "Security: follow Space Law, cuff and question suspects, and take dangerous gear as evidence.",
+            ),
+        ],
+    ),
+    dict(
+        title="Recognising Threats",
+        floor="FloorSteel",
+        door="AirlockGlass",
+        place=[("TargetSyndicate", 8, 3, None)],
+        papers=[
+            paper(
+                "What antagonists look like",
+                "Most antagonists look like normal crew. Watch behaviour, not just clothes: someone where their job never takes them, "
+                "a stranger with no name on the crew manifest, someone avoiding cameras.",
+                "Some outsiders are obvious: blood-red Syndicate hardsuits, a wizard's robe, a ninja's suit, pirate gear, a space dragon.",
+            ),
+            paper(
+                "Clues on the station",
+                "Doors and lockers that open for the wrong person (an emag makes sparks), cut wires, missing items, "
+                "bodies with no witnesses, and people who suddenly change appearance.",
+                "Examine everything (Shift + click). An ID card's name and job can be checked against the crew manifest on your PDA.",
+            ),
+        ],
+    ),
+    dict(
+        title="Reporting and Staying Safe",
+        floor="FloorSteel",
+        door="AirlockGlass",
+        table=["BookSpaceLaw", "ClothingHeadsetGrey"],
+        papers=[
+            paper(
+                "Report it",
+                "Tell Security on the Security channel (:s) or everyone on Common (;). Say what, where, when and who. "
+                "\"Man in a red hardsuit, Cargo hallway, heading north\" helps. \"Help!\" does not.",
+                "If you cannot talk freely, write it down and fax it, or find an officer in person.",
+            ),
+            paper(
+                "Crew are not Security",
+                "Your first job is to stay alive. Get away from danger, lock doors behind you, warn others and help the injured.",
+                "Leave arrests to Security. Most servers' rules punish crew who hunt antagonists without a reason.",
+            ),
+        ],
+    ),
+    dict(
+        title="Security Response",
+        floor="FloorDark",
+        door="AirlockSecurityGlass",
+        table=["MindShieldImplanter", "MindShieldImplanter", "Handcuffs"],
+        floor_items=["MobMonkey"],
+        papers=[
+            paper(
+                "Matching the threat",
+                "[bold]Traitors and thieves:[/bold] search suspects, confiscate contraband, check records.\n"
+                "[bold]Revolutionaries:[/bold] mindshield loyal crew first, protect the heads, take out the head revolutionaries.\n"
+                "[bold]Nuclear operatives:[/bold] go to red alert, guard the disk and the nuke, arm up from the armory.\n"
+                "[bold]Zombies:[/bold] quarantine the infected and keep bites away from crew.",
+                "[bold]Wizards, ninjas and dragons:[/bold] fight as a group, never alone.",
+            ),
+            paper(
+                "Mindshields",
+                "A mindshield implant stops revolutionary conversion and shows Security a person is loyal. Hold the implanter, click the person and wait.",
+                "Try it: implant the monkey, then examine it.",
+            ),
+        ],
+    ),
+    dict(
+        title="Medical Response",
+        floor="FloorWhite",
+        door="AirlockMedicalGlass",
+        floor_items=["MedicalBed"],
+        table=["MedkitToxinFilled", "HandheldHealthAnalyzer"],
+        papers=[
+            paper(
+                "Zombie infection",
+                "A bitten patient carries the zombie virus and turns later. Ambuzol cures an infection that has not turned yet. "
+                "Chemists make it from ultravasculine 1, mannitol 2 and romerodone 1.",
+                "Keep infected patients restrained and away from the medbay crowd until they are cured.",
+            ),
+            paper(
+                "Poisons and mass casualties",
+                "Traitors use poisons. Scan for toxin damage and unknown chemicals, then treat with dylovene or by pumping the stomach.",
+                "During a big attack, triage: treat the patients who can be saved fastest first, then the rest.",
+            ),
+        ],
+    ),
+    dict(
+        title="Engineering Response",
+        floor="FloorSteel",
+        door="AirlockEngineeringGlass",
+        place=[("TrainingBomb", 6, 3, None)],
+        table=["Wirecutter", "Multitool", "Screwdriver"],
+        papers=[
+            paper(
+                "Bombs",
+                "If you find a bomb, clear the area and call Security. If you must defuse it, open its panel with a screwdriver "
+                "and pulse wires with a multitool to find out what each does. Cutting the wrong one sets it off.",
+                "The training bomb here is real but small. It will knock you over and wreck a few tiles if it goes off. "
+                "The room reset button repairs the damage.",
+            ),
+            paper(
+                "Sabotage and breaches",
+                "Antagonists cut power, open airlocks to space, overload the engine and emag APCs. Check power monitoring for sudden drops and air alarms for leaks.",
+                "Fix the damage, then tell Security what you found: cut wires and emag sparks are evidence.",
+            ),
+        ],
+    ),
+    dict(
+        title="Command Response",
+        floor="FloorDark",
+        door="AirlockCommandGlass",
+        wall=["ComputerComms"],
+        papers=[
+            paper(
+                "Running a station under attack",
+                "Raise the alert level to match the threat: blue for a suspected threat, red for a confirmed one.",
+                "Keep the nuclear disk on the Captain or locked away. Call the evacuation shuttle when the station can no longer be held.",
+            ),
+            paper(
+                "The AI",
+                "Antagonists may change the AI's laws at the upload console or subvert a cyborg. If the AI starts acting strangely, "
+                "the Research Director and Captain check its laws and restore them with the fixer console.",
+            ),
+        ],
+    ),
+]
+
+AWARENESS_TASKS = {
+    "Recognising Threats": "Check an ID card against the crew manifest on your PDA.",
+    "Reporting and Staying Safe": "Put on the headset and write a useful report on the Security channel.",
+    "Security Response": "Implant the monkey with a mindshield and examine it.",
+    "Medical Response": "Look up Ambuzol in the Guidebook and find what each of its ingredients needs.",
+    "Engineering Response": "Open the training bomb with a screwdriver and find the defuse wire without setting it off.",
+    "Command Response": "Raise the alert level to blue from the communications console, then set it back to green.",
+}
+
+OPERATING_THEATRE = dict(
+    title="Operating Theatre and Implants",
+    floor="FloorWhite",
+    door="AirlockMedicalGlass",
+    place=[("OperatingTable", 5, 3, None)],
+    wall=["CrateSurgery", "VendingMachineWallMedical"],
+    floor_items=["MobMonkey"],
+    table=["TrackingImplanter", "MindShieldImplanter", "Scalpel", "Saw", "Cautery", "Retractor"],
+    papers=[
+        paper(
+            "Surgery in this version",
+            "This version of Space Station 14 has no surgery procedure. Doctors heal with medicine, topicals, cryo and the defibrillator. "
+            "Some community servers add surgery of their own.",
+            "The surgical tools still exist. The scalpel and saw work as cutting tools and the operating table works as a bed for patients.",
+        ),
+        paper(
+            "Implants",
+            "Implanters put implants under the skin. Hold one, click a person (or yourself) and wait. Each implanter holds one implant.",
+            "Mindshield implants stop revolutionary conversion. Tracking implants let Security find someone. Some antagonists use implants of their own.",
+            "Try it: implant the monkey with the tracking implant, then examine the empty implanter.",
+        ),
+    ],
+)
+
+
 # ---------------------------------------------------------------- Wings
 # side: "N" north of the main corridor, "S" south.
 WINGS = [
@@ -1609,6 +1767,7 @@ WINGS = [
     dict(name="Engineering", side="N", rooms=ENGINEERING, sign="SignEngineering"),
     dict(name="Science", side="N", rooms=SCIENCE, sign="SignScience"),
     dict(name="Antagonists: Station Threats", side="N", rooms=THREATS, sign=None),
+    dict(name="Antagonist Awareness", side="N", rooms=AWARENESS, sign=None),
     dict(name="Medical", side="S", rooms=MEDICAL, sign="SignMedical"),
     dict(name="Cargo", side="S", rooms=CARGO, sign="SignCargo",
          dock=dict(title="Salvage Dock", proto="AirlockExternalGlassShuttleTutorialSalvage", papers=SALVAGE_DOCK_PAPERS)),
@@ -1679,3 +1838,6 @@ TASKS = {
 }
 
 TASKS.update(ANTAG_TASKS)
+TASKS.update(AWARENESS_TASKS)
+TASKS["Operating Theatre and Implants"] = "Implant the monkey with the tracking implant, then examine the empty implanter."
+MEDICAL.append(OPERATING_THEATRE)

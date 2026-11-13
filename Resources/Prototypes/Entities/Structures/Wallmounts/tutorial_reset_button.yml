@@ -1,0 +1,24 @@
+# Tutorial Station (Resources/Maps/tutorial.yml): a wall button that resets one room to its round-start state.
+# The map generator sets each button's Bounds to the room it sits beside.
+- type: entity
+  parent: BaseWallmountMetallic
+  id: TutorialRoomResetButton
+  name: room reset button
+  description: Puts this room back the way it was at the start of the round. People and their belongings are left alone.
+  suffix: Tutorial
+  components:
+  - type: WallMount
+    arc: 175
+  - type: Sprite
+    offset: 0, -0.25
+    drawdepth: WallMountedItems
+    sprite: Structures/Wallmounts/switch.rsi
+    color: "#ffd060"
+    layers:
+    - state: base
+    - state: button
+    - state: button-unshaded
+      shader: unshaded
+  - type: Rotatable
+  - type: TutorialRoomReset
+    bounds: 0,0,1,1
