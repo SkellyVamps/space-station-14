@@ -39,7 +39,7 @@ public sealed class TutorialMapBuilder : GameTest
 {
     public override PoolSettings PoolSettings => new() { Dirty = true };
 
-    private sealed record LayoutEntity(string P, float X, float Y, float R, string? Paper, string? Name, string? Key, string? LinkTo, string? Portal, int[]? Reset);
+    private sealed record LayoutEntity(string P, float X, float Y, float R, string? Paper, string? Name, string? Key, string? LinkTo, string? Portal, int[]? Reset, bool? Anchor);
 
     private sealed record LayoutDecal(string Id, float X, float Y, string? Color, float R);
 
@@ -110,6 +110,8 @@ public sealed class TutorialMapBuilder : GameTest
                     links.Add((uid, e.LinkTo));
                 if (e.Portal != null)
                     portals.Add((uid, e.Portal));
+                if (e.Anchor == true)
+                    xformSys.AnchorEntity(uid);
                 if (e.Reset is { Length: 4 } r)
                     entMan.GetComponent<TutorialRoomResetComponent>(uid).Bounds = new Box2(r[0], r[1], r[2] + 1, r[3] + 1);
             }

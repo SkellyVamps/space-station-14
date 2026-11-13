@@ -128,6 +128,43 @@ def wing_slot_count():
     return max(sum(1 for w in WINGS if w["side"] == s) for s in ("N", "S"))
 
 
+BASICS_SIGNS = ["SignRedOne", "SignRedTwo", "SignRedThree", "SignRedFour", "SignRedFive", "SignRedSix"]
+WING_SIGNS = {"Command": "SignBridge", "Security": "SignSecurity", "Engineering": "SignEngineering", "Science": "SignScience",
+              "Medical": "SignMedical", "Cargo": "SignCargo", "Service: Food": "SignKitchen", "Service: Culture": "SignTheater",
+              "Civilian": "SignReception", "Antagonists: Station Threats": "SignDanger", "Antagonists: Outsiders": "SignDanger",
+              "Antagonist Awareness": "SignSecurearea"}
+ROOM_SIGNS = {
+    "Bridge (Captain)": "SignBridge", "Head of Personnel's Office": "SignHead", "Captain's Office": "SignHead",
+    "Command Meeting Room": "SignConference", "Firing Range (Cadet)": "SignLaser", "Brig and Armory (Warden)": "SignArmory",
+    "Detective's Office": "SignDetective", "Head of Security's Office": "SignHead", "Courtroom (Lawyer)": "SignLawyer",
+    "Electrical Workshop": "SignElectrical", "Construction Yard (Technical Assistant)": "SignToolStorage",
+    "Atmospherics Lab (Atmospheric Technician)": "SignAtmos", "Atmos Safety (alarms and fires)": "SignFire",
+    "Chief Engineer's Office": "SignHead", "Engine Hall": "SignEngine", "R&D Lab (Scientist)": "SignRND",
+    "Anomaly Lab": "SignAnomaly", "Artifact Lab": "SignXenobio", "Robotics": "SignRobo",
+    "Research Director's Office and Servers": "SignServer", "AI Core (Station AI)": "SignAi", "Cyborg Bay": "SignRobo",
+    "Chemistry Lab (Chemist)": "SignChem", "Cryo and Stasis": "SignCryogenics", "Paramedic Bay and Morgue": "SignMorgue",
+    "Chief Medical Officer's Office": "SignHead", "Operating Theatre and Implants": "SignSurgery",
+    "Intern Training Room": "SignExamroom", "Cargo Bay (Cargo Technician)": "SignCargoDock", "Quartermaster's Office": "SignHead",
+    "Salvage Prep (Salvage Specialist)": "SignSalvage", "Mining Field": "SignNTMine", "Kitchen (Chef)": "SignKitchen",
+    "Bar (Bartender)": "SignBar", "Hydroponics (Botanist)": "SignHydro1", "Janitor's Closet (Janitor)": "SignJanitor",
+    "Messy Room (Janitor practice)": "SignJanitor", "Chapel (Chaplain)": "SignChapel", "Library (Librarian)": "SignLibrary",
+    "Theater (Clown and Mime)": "SignTheater", "Crew Lounge (Passenger)": "SignReception",
+    "Psychologist's Office": "SignPsychology", "Newsroom (Reporter)": "SignNews", "Arcade": "SignArcade",
+    "Nuclear Operative": "SignRadiation", "Zombies": "SignZomlab", "Engineering Response": "SignExplosives",
+    "Medical Response": "SignBiohazard",
+}
+
+# The Basics Academy route: each room's last lesson points to the next one.
+BASICS_NEXT = [
+    "Next: lesson room [bold]2[/bold], straight across the hallway.",
+    "Next: lesson room [bold]3[/bold], further up the hallway on the left (west) side. Follow the arrows on the floor.",
+    "Next: lesson room [bold]4[/bold], straight across the hallway.",
+    "Next: lesson room [bold]5[/bold], further up the hallway on the left (west) side.",
+    "Next: lesson room [bold]6[/bold], straight across the hallway.",
+    "You have finished the Basics Academy. Pick a job and try its wing: the Portal Hall, west of the Hub, has a portal to every room.",
+]
+
+
 def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
     r = Room(cx, side, west, row)
     title = spec["title"]
@@ -190,6 +227,8 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
         header = f"[italic]{wing_name} · {title} · lesson {i + 1} of {len(spec['papers'])}[/italic]\n\n"
         if i == 0 and title in TASKS:
             text += f"\n\n[bold]Practice task:[/bold] {TASKS[title]}"
+        if wing_name == "Basics Academy" and i == len(spec["papers"]) - 1:
+            text += "\n\n" + BASICS_NEXT[row * 2 + (0 if west else 1)]
         paper(x, y, header + text, name=f"lesson {i + 1}: {title}")
 
     # spawn points
@@ -205,9 +244,10 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
         proto, u, v, f = item[:4]
         key = item[4] if len(item) > 4 else None
         link = item[5] if len(item) > 5 else None
+        extra = item[6] if len(item) > 6 else {}
         x, y = r.xy(u, v)
         name = "workshop target light" if spec.get("nopower") and proto == "Poweredlight" else None
-        ent(proto, x, y, r.facing(f), key=key, linkTo=link, name=name)
+        ent(proto, x, y, r.facing(f), key=key, linkTo=link, name=name, **extra)
         used.add((u, v))
 
     if spec.get("cell"):
@@ -259,6 +299,14 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
         u, v = free.pop(0)
         x, y = r.xy(u, v)
         ent(proto, x, y)
+
+    # door sign on the hallway side of the wall, named after the room
+    sx, sy = r.xy(-1, 4)
+    if wing_name == "Basics Academy":
+        sign = BASICS_SIGNS[row * 2 + (0 if west else 1)]
+    else:
+        sign = ROOM_SIGNS.get(title, WING_SIGNS.get(wing_name, "SignNanotrasen1"))
+    ent(sign, sx, sy, r.facing("in"), name=title)
 
     # reset button on the hallway wall, beside the door
     bx, by = r.xy(-1, 4)
@@ -445,6 +493,127 @@ def build():
         build_wing(i, wing)
 
     build_portal_hall(core_x0)
+    build_basics_route()
+    eng = next(i for i, w in enumerate(WINGS) if w["name"] == "Engineering")
+    eng_rows = math.ceil(len(WINGS[eng]["rooms"]) / 2)
+    build_singularity_demo(wing_cx(eng), 2 + 8 * eng_rows)
+
+
+ROUTE_COLOUR = "#ffd060cc"
+
+
+def arrow(x, y, facing):
+    decals.append({"id": "Arrows", "x": x, "y": y, "color": ROUTE_COLOUR, "r": FACING_ROT[facing]})
+
+
+def build_basics_route():
+    """Yellow floor arrows from the Hub through the Basics Academy rooms, in order."""
+    cx = wing_cx(next(i for i, w in enumerate(WINGS) if w["name"] == "Basics Academy"))
+    for x in range(-6, cx):
+        arrow(x, 0, "E")
+    for y in range(1, 2 + 8 * 3 - 4):
+        if (y - 6) % 8 == 0:
+            arrow(cx - 1, y, "W")   # rooms 1, 3, 5
+            arrow(cx + 1, y, "E")   # rooms 2, 4, 6
+        else:
+            arrow(cx, y, "N")
+
+
+def build_singularity_demo(cx, top_wall):
+    """
+    A complete singularity engine on an open platform north of the Engineering hallway, reached through
+    a double airlock. Four field generators fence a singularity generator; four emitters charge them; a
+    particle accelerator points at the generator. Its own RTGs power it. Nothing runs until switched on.
+    """
+    # double airlock out of the hallway end, with EVA suits beside it
+    ent("AirlockExternalGlass", cx, top_wall)
+    floor(cx, top_wall, "FloorSteel")
+    floor(cx, top_wall + 1, "FloorSteel")
+    ent("AirlockExternalGlass", cx, top_wall + 2)
+    floor(cx, top_wall + 2, "FloorSteel")
+    ent("SuitStorageEVA", cx - 1, top_wall - 1)
+    ent("SuitStorageEVA", cx + 1, top_wall - 1)
+
+    c_x, c_y = cx, top_wall + 13       # singularity generator
+    x0, x1, y0, y1 = c_x - 13, c_x + 11, top_wall + 3, c_y + 10
+    for x in range(x0, x1 + 1):
+        for y in range(y0, y1 + 1):
+            tiles[(x, y)] = "Plating"
+            outdoor.add((x, y))
+
+    ent("SingularityGenerator", c_x, c_y)
+    gens = [(c_x - 3, c_y - 3), (c_x + 4, c_y - 3), (c_x - 3, c_y + 4), (c_x + 4, c_y + 4)]
+    for gx, gy in gens:
+        ent("ContainmentFieldGenerator", gx, gy, key=f"fieldgen{gx},{gy}")
+    # emitters fire along the fence's sides into the generators
+    for (gx, gy), (ex, ey, face) in zip(gens, [(c_x - 3, c_y - 7, "N"), (c_x + 4, c_y - 7, "N"),
+                                                (c_x - 3, c_y + 8, "S"), (c_x + 4, c_y + 8, "S")]):
+        ent("Emitter", ex, ey, face)
+
+    # particle accelerator east of the fence, firing west at the generator.
+    # Offsets are the control box's MultipartMachine layout, for a control box at rotation 0.
+    cb_x, cb_y = c_x + 9, c_y + 1
+    ent("ParticleAcceleratorControlBox", cb_x, cb_y)
+    for proto, dx, dy in (("ParticleAcceleratorEndCap", 1, -1), ("ParticleAcceleratorFuelChamber", 0, -1),
+                          ("ParticleAcceleratorPowerBox", -1, -1), ("ParticleAcceleratorEmitterPort", -2, -2),
+                          ("ParticleAcceleratorEmitterFore", -2, -1), ("ParticleAcceleratorEmitterStarboard", -2, 0)):
+        ent(proto, cb_x + dx, cb_y + dy, "W")
+
+    # power: RTGs on HV, a substation to MV, MV in a ring past every emitter and to the PA power box,
+    # an APC for the control box and lights.
+    rx = c_x - 12
+    for k in range(4):
+        ent("GeneratorRTG", rx, c_y - 1 + k)
+        hv.add((rx, c_y - 1 + k))
+    for x in range(rx, c_x - 7 + 1):
+        hv.add((x, c_y))
+    ent("SubstationBasic", c_x - 7, c_y)
+    ring = set()
+    for x in range(c_x - 7, c_x + 12):
+        ring.add((x, c_y - 7))
+        ring.add((x, c_y + 8))
+    for y in range(c_y - 7, c_y + 9):
+        ring.add((c_x - 7, y))
+        ring.add((c_x + 11, y))
+    for x in range(c_x + 8, c_x + 12):
+        ring.add((x, c_y))
+    mv.update(ring)
+    ent("APCBasic", c_x + 11, c_y + 2, "W")
+    for y in range(c_y + 1, c_y + 3):
+        tiles_lv_extra.add((c_x + 10, y))
+        tiles_lv_extra.add((c_x + 11, y))
+    tiles_lv_extra.add((cb_x, cb_y))
+    tiles_lv_extra.add((cb_x, cb_y + 1))
+    for lx, ly in ((c_x - 9, y0), (c_x + 9, y0), (c_x - 9, y1), (c_x + 9, y1)):
+        ent("PoweredLightPostSmall", lx, ly)
+        for y in range(min(ly, c_y), max(ly, c_y) + 1):
+            tiles_lv_extra.add((lx, y))
+    for x in range(c_x - 9, c_x + 10):
+        tiles_lv_extra.add((x, c_y + 9))
+        tiles_lv_extra.add((x, c_y - 8))
+    for y in range(c_y - 8, c_y + 10):
+        tiles_lv_extra.add((c_x + 10, y))
+    # lessons on a table by the airlock
+    ent("Table", cx + 2, y0)
+    for n, text in enumerate(SINGULARITY_PAPERS):
+        paper(cx + 2, y0, f"[italic]Engineering · Singularity Demo · lesson {n + 1} of {len(SINGULARITY_PAPERS)}[/italic]\n\n" + text,
+              name=f"lesson {n + 1}: Singularity Demo")
+
+
+SINGULARITY_PAPERS = [
+    "[head=2]A real, fenced singularity[/head]\n\nIn front of you: a singularity generator in the middle, four containment field generators "
+    "around it, an emitter aimed at each field generator, and a particle accelerator (PA) to the east. Four RTGs to the west power it all.\n\n"
+    "Everything is built and wired. Nothing runs until you switch it on, and this platform is in space: keep your suit on.",
+    "[head=2]Step 1: the fence[/head]\n\nClick each of the four emitters to turn it on. They fire bolts into the field generators.\n\n"
+    "Click each field generator to turn it on. Once charged, generators facing each other form a glowing containment field. "
+    "Wait until all four sides of the fence are up.",
+    "[head=2]Step 2: the singularity[/head]\n\nOpen the PA control box (east side), turn it on and set the strength to 0. "
+    "The PA fires particles into the singularity generator, which soon makes a singularity inside the fence.\n\n"
+    "A singularity grows as it eats particles and anything thrown at it. Higher PA strength makes it grow faster.",
+    "[head=2]Step 3: shutting down, and safety[/head]\n\nTurn the PA off. Without food the singularity slowly shrinks and disappears.\n\n"
+    "Never turn off an emitter or field generator while a singularity exists: the fence drops and it escapes, eating the station. "
+    "If that happens here, run restartround.",
+]
 
 
 def build_portal_hall(core_x0):

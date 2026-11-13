@@ -13,6 +13,14 @@ using Content.Shared.Maps;
 using Content.Shared.Paper;
 using Content.Shared.Teleportation.Components;
 using Content.Shared.Tutorial;
+using Content.Server.NodeContainer.EntitySystems;
+using Content.Server.NodeContainer.NodeGroups;
+using Content.Server.NodeContainer.Nodes;
+using Content.Server.ParticleAccelerator.Components;
+using Content.Server.Machines.EntitySystems;
+using Content.Shared.Medical.Cryogenics;
+using Content.Shared.Singularity.Components;
+using Content.Shared.Interaction;
 using Content.Server.Tutorial;
 using Robust.Shared.Maths;
 using Robust.Shared.EntitySerialization;
@@ -80,7 +88,8 @@ public sealed class TutorialMapTest : GameTest
             var papers = entMan.EntityQueryEnumerator<PaperComponent, TransformComponent>();
             while (papers.MoveNext(out var uid, out _, out var xform))
             {
-                if (xform.GridUid != grid)
+                // The singularity demo's lessons sit out on its open platform, in space on purpose.
+                if (xform.GridUid != grid || entMan.GetComponent<MetaDataComponent>(uid).EntityName.EndsWith("Singularity Demo"))
                     continue;
                 var mix = atmos.GetTileMixture((uid, xform));
                 if (mix == null || mix.Pressure < 90 || mix.Pressure > 115)
@@ -214,5 +223,102 @@ public sealed class TutorialMapTest : GameTest
             Assert.That(mapSys.GetTileRef(grid, corner).Tile.TypeId, Is.EqualTo(originalTile), "The floor was not restored.");
             Assert.That(CountPapers(), Is.EqualTo(papers), "The lesson papers were not restored.");
         });
+    }
+
+    /// <summary>
+    /// The Cryo and Stasis room's loop: pod, freezer and gas port share one pipe network, and the freezer
+    /// chills it below the temperature cryoxadone needs.
+    /// </summary>
+    [Test]
+    [EnsureCVar(Side.Server, typeof(CCVars), nameof(CCVars.GridFill), false)]
+    public async Task CryoLoopCools()
+    {
+        var server = Pair.Server;
+        var entMan = server.ResolveDependency<IEntityManager>();
+        var protoMan = server.ResolveDependency<IPrototypeManager>();
+        var ticker = entMan.System<ServerGameTicker>();
+        var nodes = entMan.System<NodeContainerSystem>();
+
+        await server.WaitPost(() =>
+        {
+            var opts = DeserializationOptions.Default with { InitializeMaps = true };
+            ticker.LoadGameMap(protoMan.Index<GameMapPrototype>("Tutorial"), out _, opts);
+        });
+
+        await Pair.RunSeconds(60);
+
+        await server.WaitAssertion(() =>
+        {
+            var pods = entMan.EntityQuery<CryoPodComponent>().ToList();
+            Assert.That(pods, Has.Count.EqualTo(1));
+            var pod = pods[0].Owner;
+            Assert.That(nodes.TryGetNode<PipeNode>(pod, "port", out var port), "Cryo pod has no pipe port.");
+            var net = port!.NodeGroup as PipeNet;
+            Assert.That(net, Is.Not.Null, "Cryo pod is not on a pipe network.");
+            Assert.That(net!.Air.TotalMoles, Is.GreaterThan(1f), "The cryo loop has no gas in it.");
+            Assert.That(net.Air.Temperature, Is.LessThan(170f), $"The cryo loop is only at {net.Air.Temperature:F0} K.");
+        });
+    }
+
+    /// <summary>
+    /// The singularity demo is complete and works: the PA is assembled, and switching on the emitters and
+    /// field generators puts up the fence. The PA itself is left off.
+    /// </summary>
+    [Test]
+    [EnsureCVar(Side.Server, typeof(CCVars), nameof(CCVars.GridFill), false)]
+    public async Task SingularityDemoFenceGoesUp()
+    {
+        var server = Pair.Server;
+        var entMan = server.ResolveDependency<IEntityManager>();
+        var protoMan = server.ResolveDependency<IPrototypeManager>();
+        var ticker = entMan.System<ServerGameTicker>();
+        var multipart = entMan.System<MultipartMachineSystem>();
+
+        await server.WaitPost(() =>
+        {
+            var opts = DeserializationOptions.Default with { InitializeMaps = true };
+            ticker.LoadGameMap(protoMan.Index<GameMapPrototype>("Tutorial"), out _, opts);
+        });
+
+        await Pair.RunSeconds(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var boxes = entMan.EntityQuery<ParticleAcceleratorControlBoxComponent>().ToList();
+            Assert.That(boxes, Has.Count.EqualTo(1));
+            Assert.That(multipart.IsAssembled(boxes[0].Owner), "The particle accelerator is not assembled.");
+
+            var singGen = entMan.EntityQuery<SingularityGeneratorComponent, TransformComponent>().Single().Item2.LocalPosition;
+            var gens = DemoGenerators(entMan, singGen);
+            Assert.That(gens, Has.Count.EqualTo(4));
+            var user = entMan.SpawnEntity("MobHuman", entMan.GetComponent<TransformComponent>(gens[0].Owner).Coordinates);
+
+            var emitters = entMan.EntityQuery<EmitterComponent, TransformComponent>()
+                .Where(e => (e.Item2.LocalPosition - singGen).Length() < 10).Select(e => e.Item1.Owner).ToList();
+            Assert.That(emitters, Has.Count.EqualTo(4));
+            foreach (var target in emitters.Concat(gens.Select(g => g.Owner)))
+            {
+                var ev = new ActivateInWorldEvent(user, target, true);
+                entMan.EventBus.RaiseLocalEvent(target, ev);
+            }
+        });
+
+        await Pair.RunSeconds(60);
+
+        await server.WaitAssertion(() =>
+        {
+            var singGen = entMan.EntityQuery<SingularityGeneratorComponent, TransformComponent>().Single().Item2.LocalPosition;
+            var gens = DemoGenerators(entMan, singGen);
+            Assert.That(gens.All(g => g.IsConnected), $"Only {gens.Count(g => g.IsConnected)} of 4 field generators connected.");
+        });
+    }
+
+    /// <summary>The demo's four generators sit around the singularity generator; the Engine Hall has two more on display.</summary>
+    private static List<ContainmentFieldGeneratorComponent> DemoGenerators(IEntityManager entMan, System.Numerics.Vector2 centre)
+    {
+        return entMan.EntityQuery<ContainmentFieldGeneratorComponent, TransformComponent>()
+            .Where(g => (g.Item2.LocalPosition - centre).Length() < 8)
+            .Select(g => g.Item1)
+            .ToList();
     }
 }

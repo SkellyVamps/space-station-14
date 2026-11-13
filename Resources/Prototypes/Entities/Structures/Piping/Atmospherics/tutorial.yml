@@ -1,0 +1,18 @@
+# Tutorial Station (Resources/Maps/tutorial.yml): a pressure pump that starts switched on.
+# It fills the Cryo and Stasis room's cryo loop from a canister and stops at its target pressure.
+- type: entity
+  parent: GasPressurePump
+  id: GasPressurePumpTutorialOn
+  suffix: Enabled, Tutorial
+  components:
+  - type: GasPressurePump
+    enabled: true
+
+# A freezer that starts on and set for cryo: cryoxadone needs the pod's gas below 170 K.
+- type: entity
+  parent: GasThermoMachineFreezerEnabled
+  id: GasThermoMachineFreezerTutorialCryo
+  suffix: Enabled, Cryo, Tutorial
+  components:
+  - type: GasThermoMachine
+    targetTemperature: 100

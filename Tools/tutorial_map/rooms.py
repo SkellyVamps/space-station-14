@@ -37,7 +37,7 @@ HUB_PAPERS = [
         "The Station Power Core is at the far east end of the main corridor.",
         "[bold]Portal Hall[/bold]: through the door on the west side of this hub. It has a colour-coded portal to every room on the station, "
         "and every room has a portal back.",
-        "Start with the [bold]Basics Academy[/bold], the first wing north of this hub. Its rooms are numbered 1 to 6.",
+        "Start with the [bold]Basics Academy[/bold], the first wing north of this hub. Its rooms are numbered 1 to 6: follow the yellow arrows on the floor.",
         "Every room has a lesson table just inside the door. Read the papers in number order.",
     ),
     paper(
@@ -634,6 +634,12 @@ ENGINEERING = [
                 "Try it: finish the particle accelerator parts with a wrench, cables and a screwdriver. Examine each part to see its next step.",
                 "The station's power on this map comes from the Power Core at the east end of the main corridor. Its gravity generator is there too.",
             ),
+            paper(
+                "The singularity demo",
+                "A complete, fenced singularity engine waits outside, through the double airlock at the top of the Engineering hallway. "
+                "Suit up first: it is in space. EVA suits are beside the airlock.",
+                "The papers on the platform walk you through starting it. Everything is built and powered; nothing runs until you switch it on.",
+            ),
         ],
     ),
 ]
@@ -891,13 +897,30 @@ MEDICAL = [
         title="Cryo and Stasis",
         floor="FloorWhite",
         door="AirlockMedicalGlass",
-        wall=["CryoPod", "StasisBed", "GasThermoMachineFreezer"],
-        table=["CryoxadoneBeakerSmall"],
+        wall=["StasisBed"],
+        # A working cryo loop: the pod and the freezer meet at a four-way pipe, and a nitrogen
+        # canister on a gas port fills the loop. The freezer starts switched on.
+        place=[
+            ("CryoPod", 6, 4, None),  # cannot rotate: its pipe connection always faces south
+            ("GasPipeFourway", 6, 3, None),
+            ("GasThermoMachineFreezerTutorialCryo", 6, 2, "up"),
+            ("GasPressurePumpTutorialOn", 7, 3, "in"),  # fills the loop to 101 kPa, then stops
+            ("GasPort", 8, 3, "in"),
+            ("NitrogenCanister", 8, 3, None, None, None, {"anchor": True}),
+        ],
+        table=["CryoxadoneBeakerSmall", "GasAnalyzer"],
         papers=[
             paper(
                 "Cryogenics",
-                "A cryo pod heals any damage type over time with cryoxadone, but only when the pod is very cold. On a real station a freezer chills the pod's gas.",
+                "A cryo pod heals any damage type over time with cryoxadone, but only when the gas in the pod is very cold.",
                 "Put a cryoxadone beaker in the pod, place the patient inside and they heal while they sleep.",
+            ),
+            paper(
+                "The cryo loop",
+                "This pod is plumbed like a real one. The freezer (already on, set to 100 K) chills the gas in the pipes, and the pipes feed the pod. "
+                "The nitrogen canister on the gas port fills the loop through a pump, which stops at 101 kPa so the freezer only has to chill the loop.",
+                "Use the gas analyzer on the pipe between the pod and the freezer: the temperature drops over the first minute. "
+                "Open the freezer to change its target temperature. Below about 170 K, cryoxadone starts to work.",
             ),
             paper(
                 "Stasis",
@@ -1802,7 +1825,7 @@ TASKS = {
     "Atmospherics Lab (Atmospheric Technician)": "Analyze the air canister and this room's air with the gas analyzer.",
     "Atmos Safety (alarms and fires)": "Pull the fire alarm, watch the firelocks close, then reset it.",
     "Chief Engineer's Office": "Find every generator and SMES on the power monitoring console.",
-    "Engine Hall": "Finish the particle accelerator parts with a wrench, cables and a screwdriver.",
+    "Engine Hall": "Finish the particle accelerator parts, then suit up and start the fenced singularity demo outside.",
     "R&D Lab (Scientist)": "Load steel into the autolathe and print a crowbar.",
     "Research Assistant's Desk": "Take both scanners to the Anomaly and Artifact labs and scan something.",
     "Anomaly Lab": "Read the anomaly vessel and A.P.E. menus. Only start the generator if you are ready for an anomaly somewhere on the station.",
@@ -1814,7 +1837,7 @@ TASKS = {
     "Treatment Ward (Medical Doctor)": "Hurt the monkey a little, then heal it until the analyzer reads clean.",
     "Intern Training Room": "Strap the monkey to the roller bed and wheel it to the Treatment Ward.",
     "Chemistry Lab (Chemist)": "Make 30u of Bicaridine and press it into pills.",
-    "Cryo and Stasis": "Load the cryoxadone beaker into the cryo pod.",
+    "Cryo and Stasis": "Analyze the cryo pipe until it reads below 170 K, then load the cryoxadone beaker into the pod.",
     "Paramedic Bay and Morgue": "Unfold a roller bed and a body bag, then find yourself on the crew monitoring console.",
     "Chief Medical Officer's Office": "Check crew monitoring and the medical records console.",
     "Cargo Bay (Cargo Technician)": "Order something cheap, approve it, and collect it from the telepad.",
