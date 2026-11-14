@@ -200,7 +200,7 @@ def build_room(spec, cx, side, west, row, wing_name, wing_index=0):
         # Electrical Workshop: the practice APC sits on the far wall, off the station grid,
         # with a stub of MV and LV under it for the student to connect to.
         px, py = r.xy(9, 5)
-        ent("APCBasic", px, py, r.facing("in"))
+        ent("APCBasic", px, py, r.facing("in"), name="practice APC")
         ent("CableMV", px, py)
         ent("CableApcExtension", px, py)
     else:
@@ -385,6 +385,8 @@ def build_wing(i, wing):
         for x in (cx - 1, cx, cx + 1):
             floor(x, y, "FloorSteel")
             mv.add((cx, y))
+    # join the hallway's MV line to the main corridor's, which runs along y = 0
+    mv.add((cx, sgn * 1))
     # glass airlocks where the hallway meets the corridor
     for x in (cx - 1, cx, cx + 1):
         ent("AirlockGlass", x, sgn * 2)
@@ -445,7 +447,7 @@ def build():
     ent("Poweredlight", -6, -5, "N")
     ent("Poweredlight", -11, 0, "E")
     ent("APCBasic", 0, 6, "S")
-    for y in range(0, 6):
+    for y in range(0, 7):
         mv.add((0, y))
     tiles_lv_extra.add((0, 6))
     # directory papers: one per wing

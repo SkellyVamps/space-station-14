@@ -5,6 +5,7 @@ using Content.IntegrationTests.Fixtures.Attributes;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.GameTicking;
 using Content.Server.Power.Components;
+using Content.Shared.APC;
 using Content.Server.Shuttles.Components;
 using Content.Shared.Shuttles.Components;
 using Content.Shared.CCVar;
@@ -82,6 +83,22 @@ public sealed class TutorialMapTest : GameTest
             }
 
             Assert.That(unpowered, Is.Empty, $"Unpowered on the Tutorial Station:\n{string.Join("\n", unpowered.Take(30))}");
+
+            // APCs: every one is fed by the station grid (not running down its own battery) and well under its
+            // trip limit. Only the Electrical Workshop's practice APC is off the grid, on purpose.
+            var badApcs = new List<string>();
+            var apcs = entMan.EntityQueryEnumerator<ApcComponent, PowerNetworkBatteryComponent, TransformComponent, MetaDataComponent>();
+            while (apcs.MoveNext(out _, out var apc, out var battery, out var xform, out var meta))
+            {
+                if (xform.GridUid != grid || meta.EntityName == "practice APC")
+                    continue;
+                // "None" means no grid feed. ("Low" only means it is still recharging after the RTGs ramp up.)
+                if (apc.LastExternalState == ApcExternalPowerState.None || battery.CurrentReceiving <= 0 ||
+                    battery.CurrentSupply > apc.MaxLoad * 0.5f || apc.TripFlag)
+                    badApcs.Add($"APC at {xform.Coordinates.Position}: external {apc.LastExternalState}, receiving {battery.CurrentReceiving:F0} W, load {battery.CurrentSupply:F0} W");
+            }
+
+            Assert.That(badApcs, Is.Empty, $"APCs not fed properly:\n{string.Join("\n", badApcs.Take(30))}");
 
             // Air: breathable at every lesson paper, which sits just inside each room's door.
             var stale = new List<string>();
